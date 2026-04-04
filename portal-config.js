@@ -3,7 +3,7 @@ window.PORTAL_CONFIG = {
   admin: {
     name: "Ogretmen",
     email: "kutluozgur79@gmail.com",
-    password: ""
+    password: "Ogretmen123!"
   },
   firebase: {
     teacherEmails: [

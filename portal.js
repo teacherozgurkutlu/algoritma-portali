@@ -103,7 +103,6 @@ function renderTeacherLoginNote() {
       ? `
         <p><strong>Ogretmen e-postalari:</strong> ${teacherEmails.map(escapeHtml).join(", ")}</p>
         <p>Bu e-postalardan biri ile giris yapan kullanici ogretmen panelini acabilir.</p>
-        ${ADMIN_CONFIG.password ? `<p><strong>Hazir sifre:</strong> ${escapeHtml(ADMIN_CONFIG.password)}</p>` : ""}
       `
       : `<p>Firebase modunda ogretmen e-postalari <code>portal-config.js</code> icinde ayarlanir.</p>`;
     return;

@@ -1,44 +1,35 @@
 # Algoritma Portali
 
-Bu proje, 5. sinif ogrencilerinin anlayabilecegi duzeyde hazirlanmis bir GitHub Pages sitesidir.
+Bu proje, 5. sinif ogrencileri icin hazirlanmis algoritma portalidir.
 
 ## Sayfalar
 
 - `index.html`: Ana sayfa
-- `algoritma-nedir.html`: Algoritmanin temel tanimi
-- `neden-onemli.html`: Algoritmalarin neden onemli oldugu
-- `gunluk-hayat.html`: Gunluk hayattan ornekler
-- `giris.html`: Ogrenci kaydi ve giris ekrani
+- `algoritma-nedir.html`: Algoritma tanimi
+- `neden-onemli.html`: Neden onemli oldugu
+- `gunluk-hayat.html`: Gunluk hayat ornekleri
+- `giris.html`: Ogrenci kaydi ve giris
 - `mini-lab.html`: 10 soruluk quiz
-- `ogretmen-paneli.html`: Quiz sonuclarinin goruldugu panel
+- `ogretmen-paneli.html`: Sonuc paneli
 
-## Bu surum nasil calisir?
+## Veri modlari
 
-- Ogrenciler `giris.html` sayfasindan kayit olabilir.
-- Kayit olan ogrenci giris yapip `mini-lab.html` sayfasinda quiz cozer.
-- Her quiz sonucu, dogru ve yanlis cevap detaylari ile birlikte kaydedilir.
-- Ogretmen hesabi ile `ogretmen-paneli.html` sayfasinda tum sonuclar gorulebilir.
+- `local`: Veriler ayni tarayici icinde tutulur.
+- `firebase`: Gercek cok kullanicili kullanim icin Firebase Auth ve Firestore kullanilir.
 
-## Varsayilan ogretmen hesabi
+Aktif mod `portal-config.js` dosyasindan belirlenir.
 
-- E-posta: `ogretmen@algoritma-portal.local`
-- Sifre: `Ogretmen123`
+## Firebase dosyalari
 
-Bu bilgiler `portal-config.js` dosyasindan degistirilebilir.
+- `portal-config.js`: Web uygulama ayarlari ve ogretmen e-postalari
+- `portal-data.js`: Yerel ve Firebase veri katmani
+- `portal.js`: Arayuz mantigi
+- `firebase.json`: Hosting ve Firestore yapilandirmasi
+- `firestore.rules`: Guvenlik kurallari
+- `firestore.indexes.json`: Firestore index yapisi
 
 ## Onemli not
 
-Bu surumde veriler `localStorage` kullanilarak tarayicida saklanir. Yani:
-
-- Sonuclar ayni tarayici ve ayni cihaz icinde gorunur.
-- Farkli cihazlardan girilen ogrenci verileri ortak olarak birlesmez.
-
-Tum cihazlardan ortak kayit, gercek kullanici dogrulamasi ve merkezi sonuc takibi isteniyorsa Firebase veya Supabase gibi bir servis baglanmalidir.
-
-## GitHub Pages ile yayinlama
-
-1. Dosyalari bir GitHub deposuna yukleyin.
-2. `Settings > Pages` bolumune gidin.
-3. `Source` olarak `Deploy from a branch` secin.
-4. Branch olarak `main`, klasor olarak `/ (root)` secin.
-5. Kaydedin. Birkac dakika sonra site yayinlanir.
+Gercek cok kullanicili sistemin canliya alinmasi icin bir Firebase projesi gerekir.
+Bu ortamda Firebase girisi etkileşimli Google oturumu istedigi icin son aktivasyon adimi,
+kisa bir kullanici onayi gerektirebilir.

@@ -18,7 +18,14 @@ const ADMIN_CONFIG = PORTAL_CONFIG.admin || {
 const state = {
   dataLayer: null,
   currentUser: null,
-  teacherSnapshotUnsubscribe: null
+  teacherSnapshotUnsubscribe: null,
+  teacherSnapshot: null,
+  teacherControlsBound: false,
+  teacherFilters: {
+    search: "",
+    className: "all",
+    sort: "date_desc"
+  }
 };
 
 function friendlyErrorMessage(error) {
@@ -169,6 +176,167 @@ function renderQuizResult(result) {
     </div>
     <ol class="results-list">${answerList}</ol>
   `;
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function compareAttempts(left, right, sort) {
+  if (sort === "date_asc") {
+    return new Date(left.createdAt) - new Date(right.createdAt);
+  }
+
+  if (sort === "score_desc") {
+    return right.score - left.score || new Date(right.createdAt) - new Date(left.createdAt);
+  }
+
+  if (sort === "score_asc") {
+    return left.score - right.score || new Date(right.createdAt) - new Date(left.createdAt);
+  }
+
+  if (sort === "name_asc") {
+    return normalizeText(left.studentName).localeCompare(normalizeText(right.studentName), "tr");
+  }
+
+  return new Date(right.createdAt) - new Date(left.createdAt);
+}
+
+function getFilteredTeacherAttempts(snapshot) {
+  const attempts = [...(snapshot?.attempts || [])];
+  const search = normalizeText(state.teacherFilters.search);
+  const className = state.teacherFilters.className;
+  const filtered = attempts.filter((attempt) => {
+    const matchesClass = className === "all" || normalizeText(attempt.className) === normalizeText(className);
+    if (!matchesClass) {
+      return false;
+    }
+
+    if (!search) {
+      return true;
+    }
+
+    const haystack = [
+      attempt.studentName,
+      attempt.className,
+      attempt.email
+    ].map(normalizeText).join(" ");
+
+    return haystack.includes(search);
+  });
+
+  filtered.sort((left, right) => compareAttempts(left, right, state.teacherFilters.sort));
+  return filtered;
+}
+
+function renderTeacherFilterSummary(filteredAttempts, snapshot) {
+  const host = document.getElementById("teacher-filter-summary");
+  if (!host) {
+    return;
+  }
+
+  const total = snapshot?.attempts?.length || 0;
+  const filteredStudents = new Set(filteredAttempts.map((attempt) => attempt.userId)).size;
+  host.textContent = `${filteredAttempts.length} quiz sonucu gosteriliyor • ${filteredStudents} ogrenci • toplam kayit ${total}`;
+}
+
+function toCsvCell(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function bindTeacherControls(snapshot) {
+  const searchInput = document.getElementById("teacher-search");
+  const classFilter = document.getElementById("teacher-class-filter");
+  const sortSelect = document.getElementById("teacher-sort");
+  const resetButton = document.getElementById("teacher-filter-reset");
+  const csvButton = document.getElementById("download-results-csv");
+  const jsonButton = document.getElementById("download-results");
+
+  if (!searchInput || !classFilter || !sortSelect || !resetButton) {
+    return;
+  }
+
+  const classNames = [...new Set((snapshot.students || []).map((student) => student.className).filter(Boolean))].sort((left, right) => left.localeCompare(right, "tr"));
+  const currentValue = classFilter.value || "all";
+  classFilter.innerHTML = `<option value="all">Tum siniflar</option>${classNames.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}`;
+  classFilter.value = classNames.includes(currentValue) ? currentValue : state.teacherFilters.className;
+
+  if (!state.teacherControlsBound) {
+    state.teacherControlsBound = true;
+
+    searchInput.addEventListener("input", () => {
+      state.teacherFilters.search = searchInput.value;
+      renderTeacherStats(state.teacherSnapshot);
+    });
+
+    classFilter.addEventListener("change", () => {
+      state.teacherFilters.className = classFilter.value;
+      renderTeacherStats(state.teacherSnapshot);
+    });
+
+    sortSelect.addEventListener("change", () => {
+      state.teacherFilters.sort = sortSelect.value;
+      renderTeacherStats(state.teacherSnapshot);
+    });
+
+    resetButton.addEventListener("click", () => {
+      state.teacherFilters = {
+        search: "",
+        className: "all",
+        sort: "date_desc"
+      };
+      searchInput.value = "";
+      classFilter.value = "all";
+      sortSelect.value = "date_desc";
+      renderTeacherStats(state.teacherSnapshot);
+    });
+
+    jsonButton?.addEventListener("click", () => {
+      const attempts = getFilteredTeacherAttempts(state.teacherSnapshot);
+      const blob = new Blob([JSON.stringify(attempts, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "quiz-sonuclari.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    csvButton?.addEventListener("click", () => {
+      const attempts = getFilteredTeacherAttempts(state.teacherSnapshot);
+      const header = [
+        "Ogrenci",
+        "Sinif",
+        "E-posta",
+        "Dogru",
+        "Yanlis",
+        "Puan",
+        "Tarih"
+      ];
+      const rows = attempts.map((attempt) => [
+        attempt.studentName,
+        attempt.className,
+        attempt.email,
+        attempt.correctCount,
+        attempt.wrongCount,
+        attempt.score,
+        formatDate(attempt.createdAt)
+      ]);
+      const csv = [header, ...rows].map((row) => row.map(toCsvCell).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "quiz-sonuclari.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  searchInput.value = state.teacherFilters.search;
+  classFilter.value = classNames.includes(state.teacherFilters.className) ? state.teacherFilters.className : "all";
+  sortSelect.value = state.teacherFilters.sort;
 }
 
 async function renderStudentAttempts(userId) {
@@ -344,22 +512,28 @@ function renderQuizPage() {
 }
 
 function renderTeacherStats(snapshot) {
-  const attempts = snapshot.attempts || [];
+  state.teacherSnapshot = snapshot;
+  bindTeacherControls(snapshot);
+
+  const attempts = getFilteredTeacherAttempts(snapshot);
   const students = snapshot.students || [];
   const totalScore = attempts.reduce((sum, attempt) => sum + attempt.score, 0);
   const averageScore = attempts.length ? Math.round(totalScore / attempts.length) : 0;
+  const uniqueAttemptStudents = new Set(attempts.map((attempt) => attempt.userId)).size;
 
   document.getElementById("teacher-stats").innerHTML = `
     <article class="stat-card"><span>Kayitli ogrenci</span><strong>${students.length}</strong></article>
-    <article class="stat-card"><span>Toplam quiz</span><strong>${attempts.length}</strong></article>
+    <article class="stat-card"><span>Gorunen quiz</span><strong>${attempts.length}</strong></article>
+    <article class="stat-card"><span>Gorunen ogrenci</span><strong>${uniqueAttemptStudents}</strong></article>
     <article class="stat-card"><span>Ortalama puan</span><strong>${averageScore}</strong></article>
   `;
 
   const tableHost = document.getElementById("teacher-table");
   const detailHost = document.getElementById("teacher-details");
+  renderTeacherFilterSummary(attempts, snapshot);
 
   if (!attempts.length) {
-    tableHost.innerHTML = `<div class="empty-state">Heniz ogrenci sonucu kaydedilmedi.</div>`;
+    tableHost.innerHTML = `<div class="empty-state">Secili filtrelerde sonuc bulunamadi.</div>`;
     detailHost.innerHTML = "";
     return;
   }
@@ -376,7 +550,7 @@ function renderTeacherStats(snapshot) {
   `;
 
   detailHost.innerHTML = attempts.map((attempt) => `
-    <details class="attempt-card" open>
+    <details class="attempt-card">
       <summary>
         <span>${escapeHtml(attempt.studentName)} - ${escapeHtml(attempt.className)}</span>
         <strong>${attempt.correctCount}/${attempt.total} dogru</strong>
@@ -388,19 +562,6 @@ function renderTeacherStats(snapshot) {
     </details>
   `).join("");
 
-  const downloadButton = document.getElementById("download-results");
-  if (downloadButton && !downloadButton.dataset.bound) {
-    downloadButton.dataset.bound = "true";
-    downloadButton.addEventListener("click", () => {
-      const blob = new Blob([JSON.stringify(attempts, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "quiz-sonuclari.json";
-      link.click();
-      URL.revokeObjectURL(url);
-    });
-  }
 }
 
 async function renderTeacherDashboard() {

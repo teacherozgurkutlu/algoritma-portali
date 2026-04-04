@@ -596,9 +596,39 @@ body::after {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 18px;
+}
+
+.teacher-tools {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.teacher-tools select,
+.teacher-tools input {
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  font: inherit;
+}
+
+.tool-actions {
+  display: flex;
+  align-items: end;
+  height: 100%;
+}
+
+.filter-summary {
+  margin-top: 14px !important;
+  color: var(--ink-soft);
+  font-weight: 800;
 }
 
 .stat-card {
@@ -666,7 +696,8 @@ body::after {
   .lab-grid,
   .auth-layout,
   .dashboard-grid,
-  .result-summary {
+  .result-summary,
+  .teacher-tools {
     grid-template-columns: 1fr;
   }
 

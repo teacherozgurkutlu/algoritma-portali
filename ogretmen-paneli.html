@@ -42,8 +42,39 @@
 
         <div class="inline-actions">
           <button class="button button-primary" type="button" id="download-results">Sonuclari indir</button>
+          <button class="button button-secondary" type="button" id="download-results-csv">CSV indir</button>
           <a class="button button-secondary" href="mini-lab.html">Quiz sayfasi</a>
         </div>
+
+        <article class="lab-card">
+          <h2>Filtrele ve sirala</h2>
+          <div class="teacher-tools">
+            <label class="field">
+              <span>Ogrenci ara</span>
+              <input type="text" id="teacher-search" placeholder="Ad, e-posta veya sinif">
+            </label>
+            <label class="field">
+              <span>Sinif</span>
+              <select id="teacher-class-filter">
+                <option value="all">Tum siniflar</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Sirala</span>
+              <select id="teacher-sort">
+                <option value="date_desc">En yeni once</option>
+                <option value="date_asc">En eski once</option>
+                <option value="score_desc">Puan yuksekten</option>
+                <option value="score_asc">Puan dusukten</option>
+                <option value="name_asc">Isme gore A-Z</option>
+              </select>
+            </label>
+            <div class="tool-actions">
+              <button class="button button-secondary" type="button" id="teacher-filter-reset">Filtreleri temizle</button>
+            </div>
+          </div>
+          <p class="filter-summary" id="teacher-filter-summary"></p>
+        </article>
 
         <article class="lab-card">
           <h2>Sonuc tablosu</h2>

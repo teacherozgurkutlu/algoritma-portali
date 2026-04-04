@@ -245,6 +245,150 @@ function toCsvCell(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+function buildStudentSummaries(attempts) {
+  const map = new Map();
+
+  attempts.forEach((attempt) => {
+    const key = attempt.userId || attempt.email;
+    const existing = map.get(key) || {
+      userId: attempt.userId,
+      studentName: attempt.studentName,
+      className: attempt.className,
+      email: attempt.email,
+      attemptsCount: 0,
+      totalScore: 0,
+      bestScore: 0,
+      latestAt: attempt.createdAt,
+      latestScore: attempt.score
+    };
+
+    existing.attemptsCount += 1;
+    existing.totalScore += attempt.score;
+    existing.bestScore = Math.max(existing.bestScore, attempt.score);
+
+    if (new Date(attempt.createdAt) > new Date(existing.latestAt)) {
+      existing.latestAt = attempt.createdAt;
+      existing.latestScore = attempt.score;
+    }
+
+    map.set(key, existing);
+  });
+
+  return [...map.values()]
+    .map((item) => ({
+      ...item,
+      averageScore: Math.round(item.totalScore / item.attemptsCount)
+    }))
+    .sort((left, right) =>
+      right.bestScore - left.bestScore ||
+      right.averageScore - left.averageScore ||
+      normalizeText(left.studentName).localeCompare(normalizeText(right.studentName), "tr")
+    );
+}
+
+function buildQuestionAnalysis(attempts) {
+  const stats = new Map();
+
+  attempts.forEach((attempt) => {
+    (attempt.answers || []).forEach((answer, index) => {
+      const key = `${index + 1}`;
+      const existing = stats.get(key) || {
+        number: index + 1,
+        prompt: answer.prompt,
+        total: 0,
+        wrong: 0,
+        correct: 0
+      };
+
+      existing.total += 1;
+      if (answer.isCorrect) {
+        existing.correct += 1;
+      } else {
+        existing.wrong += 1;
+      }
+
+      stats.set(key, existing);
+    });
+  });
+
+  return [...stats.values()]
+    .map((item) => ({
+      ...item,
+      wrongRate: item.total ? Math.round((item.wrong / item.total) * 100) : 0
+    }))
+    .sort((left, right) => right.wrong - left.wrong || right.wrongRate - left.wrongRate || left.number - right.number);
+}
+
+function renderTeacherInsights(filteredAttempts) {
+  const summaryHost = document.getElementById("teacher-student-summary");
+  const topHost = document.getElementById("teacher-top-students");
+  const questionHost = document.getElementById("teacher-question-analysis");
+
+  if (!summaryHost || !topHost || !questionHost) {
+    return;
+  }
+
+  if (!filteredAttempts.length) {
+    summaryHost.innerHTML = `<div class="empty-state">Ogrenci ozeti icin sonuc bulunamadi.</div>`;
+    topHost.innerHTML = `<div class="empty-state">Siralama olusturulamadi.</div>`;
+    questionHost.innerHTML = `<div class="empty-state">Soru analizi icin yeterli veri yok.</div>`;
+    return;
+  }
+
+  const summaries = buildStudentSummaries(filteredAttempts);
+  const questionAnalysis = buildQuestionAnalysis(filteredAttempts);
+
+  summaryHost.innerHTML = `
+    <div class="summary-card-grid">
+      ${summaries.map((item) => `
+        <article class="summary-card">
+          <h3>${escapeHtml(item.studentName)}</h3>
+          <p>${escapeHtml(item.className || "-")} • ${escapeHtml(item.email || "-")}</p>
+          <div class="summary-metrics">
+            <span>Deneme: <strong>${item.attemptsCount}</strong></span>
+            <span>En iyi: <strong>${item.bestScore}</strong></span>
+            <span>Ortalama: <strong>${item.averageScore}</strong></span>
+            <span>Son puan: <strong>${item.latestScore}</strong></span>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+
+  topHost.innerHTML = `
+    <div class="rank-list">
+      ${summaries.slice(0, 5).map((item, index) => `
+        <article class="rank-item">
+          <div class="rank-badge">${index + 1}</div>
+          <div>
+            <h3>${escapeHtml(item.studentName)}</h3>
+            <p>${escapeHtml(item.className || "-")} • En iyi ${item.bestScore} • Ortalama ${item.averageScore}</p>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+
+  questionHost.innerHTML = `
+    <div class="question-analysis-list">
+      ${questionAnalysis.map((item) => `
+        <article class="question-analysis-item">
+          <div class="question-analysis-head">
+            <span class="question-badge">Soru ${item.number}</span>
+            <strong>%${item.wrongRate} yanlis</strong>
+          </div>
+          <p>${escapeHtml(item.prompt)}</p>
+          <div class="summary-metrics">
+            <span>Yanlis: <strong>${item.wrong}</strong></span>
+            <span>Dogru: <strong>${item.correct}</strong></span>
+            <span>Toplam: <strong>${item.total}</strong></span>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
 function bindTeacherControls(snapshot) {
   const searchInput = document.getElementById("teacher-search");
   const classFilter = document.getElementById("teacher-class-filter");
@@ -531,6 +675,7 @@ function renderTeacherStats(snapshot) {
   const tableHost = document.getElementById("teacher-table");
   const detailHost = document.getElementById("teacher-details");
   renderTeacherFilterSummary(attempts, snapshot);
+  renderTeacherInsights(attempts);
 
   if (!attempts.length) {
     tableHost.innerHTML = `<div class="empty-state">Secili filtrelerde sonuc bulunamadi.</div>`;

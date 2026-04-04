@@ -1,21 +1,21 @@
 window.PORTAL_CONFIG = {
-  storageMode: "local",
+  storageMode: "firebase",
   admin: {
     name: "Ogretmen",
-    email: "ogretmen@algoritma-portal.local",
-    password: "Ogretmen123"
+    email: "kutluozgur79@gmail.com",
+    password: ""
   },
   firebase: {
     teacherEmails: [
-      "teacher@example.com"
+      "kutluozgur79@gmail.com"
     ],
     config: {
-      apiKey: "",
-      authDomain: "",
-      projectId: "",
-      storageBucket: "",
-      messagingSenderId: "",
-      appId: ""
+      apiKey: "AIzaSyBKX4_Xqc45SjwnoAivJkEL7dGnaYwxyMM",
+      authDomain: "algoritma-portali-2026.firebaseapp.com",
+      projectId: "algoritma-portali-2026",
+      storageBucket: "algoritma-portali-2026.firebasestorage.app",
+      messagingSenderId: "274838059226",
+      appId: "1:274838059226:web:97adab19da4cdd72b0cde3"
     }
   }
 };

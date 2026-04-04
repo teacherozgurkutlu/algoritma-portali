@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     function isTeacher() {
-      return isSignedIn() && request.auth.token.email == "teacher@example.com";
+      return isSignedIn() && request.auth.token.email == "kutluozgur79@gmail.com";
     }
 
     function isOwner(userId) {

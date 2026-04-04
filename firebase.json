@@ -7,6 +7,15 @@
     "public": ".",
     "ignore": [
       "firebase.json",
+      ".firebaserc",
+      ".gitignore",
+      "README.md",
+      "FIREBASE_SETUP.md",
+      "package.json",
+      "package-lock.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      "firebase-debug.log",
       "**/.*",
       "**/node_modules/**"
     ]

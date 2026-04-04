@@ -21,6 +21,20 @@ const state = {
   teacherSnapshotUnsubscribe: null
 };
 
+function friendlyErrorMessage(error) {
+  const text = String(error?.message || error || "");
+
+  if (text.includes("CONFIGURATION_NOT_FOUND")) {
+    return "Firebase Authentication henuz etkin degil. Konsolda Authentication > Get started ve Email/Password secenegini acin.";
+  }
+
+  if (text.includes("auth/operation-not-allowed")) {
+    return "Email/Password girisi Firebase Authentication icinde etkinlestirilmemis.";
+  }
+
+  return text || "Bilinmeyen hata";
+}
+
 function renderSessionBadges() {
   const user = state.currentUser;
   const modeLabel = getModeLabel();
@@ -232,7 +246,7 @@ function renderLoginPage() {
         state.currentUser = await state.dataLayer.loginUser(formData.get("email"), formData.get("password"));
         window.location.href = state.currentUser.role === "teacher" ? "ogretmen-paneli.html" : "mini-lab.html";
       } catch (error) {
-        loginMessage.textContent = error.message || "Giris yapilamadi.";
+        loginMessage.textContent = friendlyErrorMessage(error) || "Giris yapilamadi.";
       }
     });
   }
@@ -269,7 +283,7 @@ function renderLoginPage() {
         state.currentUser = await state.dataLayer.registerUser(payload);
         window.location.href = "mini-lab.html";
       } catch (error) {
-        registerMessage.textContent = error.message || "Kayit yapilamadi.";
+        registerMessage.textContent = friendlyErrorMessage(error) || "Kayit yapilamadi.";
       }
     });
   }
@@ -322,7 +336,7 @@ function renderQuizPage() {
         quizForm.reset();
         await renderStudentAttempts(state.currentUser.id);
       } catch (error) {
-        quizMessage.textContent = error.message || "Quiz kaydedilemedi.";
+        quizMessage.textContent = friendlyErrorMessage(error) || "Quiz kaydedilemedi.";
       }
     });
   }
@@ -418,13 +432,13 @@ async function renderTeacherDashboard() {
   try {
     renderTeacherStats(await state.dataLayer.getTeacherSnapshot());
   } catch (error) {
-    document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Sonuclar alinamadi: ${escapeHtml(error.message || "Bilinmeyen hata")}</div>`;
+    document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Sonuclar alinamadi: ${escapeHtml(friendlyErrorMessage(error))}</div>`;
   }
 
   state.teacherSnapshotUnsubscribe = state.dataLayer.subscribeTeacherSnapshot(
     (snapshot) => renderTeacherStats(snapshot),
     (error) => {
-      document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Canli sonuc baglantisi kurulamadi: ${escapeHtml(error.message || "Bilinmeyen hata")}</div>`;
+      document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Canli sonuc baglantisi kurulamadi: ${escapeHtml(friendlyErrorMessage(error))}</div>`;
     }
   );
 }
@@ -442,6 +456,6 @@ async function initPortal() {
 initPortal().catch((error) => {
   console.error(error);
   document.querySelectorAll("[data-session-status]").forEach((node) => {
-    node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(error.message || "Portal baslatilamadi")}</span>`;
+    node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(friendlyErrorMessage(error) || "Portal baslatilamadi")}</span>`;
   });
 });

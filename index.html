@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Algoritma Portalı</title>
-  <meta name="description" content="5. sınıf öğrencileri için algoritmanın önemini anlatan eğlenceli portal.">
+  <title>Algoritma Portali</title>
+  <meta name="description" content="5. sinif ogrencileri icin algoritmanin onemini anlatan eglenceli portal.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -13,36 +13,40 @@
 <body>
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="index.html">Algoritma Portalı</a>
-      <nav class="site-nav" aria-label="Ana menü">
+      <a class="brand" href="index.html">Algoritma Portali</a>
+      <nav class="site-nav" aria-label="Ana menu">
         <a class="active" href="index.html">Ana Sayfa</a>
         <a href="algoritma-nedir.html">Algoritma Nedir?</a>
-        <a href="neden-onemli.html">Neden Önemli?</a>
-        <a href="gunluk-hayat.html">Günlük Hayat</a>
+        <a href="neden-onemli.html">Neden Onemli?</a>
+        <a href="gunluk-hayat.html">Gunluk Hayat</a>
         <a href="mini-lab.html">Mini Lab</a>
+        <a href="giris.html">Giris</a>
+        <a href="ogretmen-paneli.html">Panel</a>
       </nav>
     </header>
 
     <main>
+      <section class="account-strip reveal" data-session-status></section>
+
       <section class="hero reveal">
         <div class="hero-text">
-          <p class="eyebrow">Basit, renkli ve anlaşılır</p>
-          <h1>Algoritma ne işe yarar?</h1>
+          <p class="eyebrow">Basit, renkli ve anlasilir</p>
+          <h1>Algoritma ne ise yarar?</h1>
           <p>
-            Algoritma, bir işi doğru sırayla yapmamızı sağlayan adımlar dizisidir.
-            Diş fırçalamaktan bilgisayar oyunu yapmaya kadar pek çok yerde kullanılır.
+            Algoritma, bir isi dogru sirayla yapmamizi saglayan adimlar dizisidir.
+            Dis fircalamaktan bilgisayar oyunu yapmaya kadar pek cok yerde kullanilir.
           </p>
           <div class="hero-actions">
-            <a class="button button-primary" href="algoritma-nedir.html">Keşfetmeye Başla</a>
-            <a class="button button-secondary" href="mini-lab.html">Mini Etkinlik</a>
+            <a class="button button-primary" href="algoritma-nedir.html">Kesfetmeye Basla</a>
+            <a class="button button-secondary" href="giris.html">Giris ve Quiz</a>
           </div>
         </div>
         <div class="hero-card">
-          <h2>Bugünün Fikri</h2>
-          <p>Karışık işleri kolaylaştırmanın yolu, adımları sıraya koymaktır.</p>
+          <h2>Bugunun Fikri</h2>
+          <p>Karisik isleri kolaylastirmanin yolu, adimlari siraya koymaktir.</p>
           <ol>
-            <li>Düşün</li>
-            <li>Sırala</li>
+            <li>Dusun</li>
+            <li>Sirala</li>
             <li>Uygula</li>
           </ol>
         </div>
@@ -51,37 +55,41 @@
       <section class="grid-section reveal">
         <article class="info-card">
           <h2>Algoritma bir tarif gibidir</h2>
-          <p>Bir kek yapmak için malzemeleri ve adımları takip ederiz. Algoritma da buna benzer.</p>
+          <p>Bir kek yapmak icin malzemeleri ve adimlari takip ederiz. Algoritma da buna benzer.</p>
         </article>
         <article class="info-card">
-          <h2>Hataları azaltır</h2>
-          <p>Adımlar belli olunca karışıklık azalır ve işi daha kolay tamamlarız.</p>
+          <h2>Hatalari azaltir</h2>
+          <p>Adimlar belli olunca karisiklik azalir ve isi daha kolay tamamlariz.</p>
         </article>
         <article class="info-card">
-          <h2>Bilgisayarlar böyle çalışır</h2>
-          <p>Bilgisayarlar, onlara verilen sıralı komutları yerine getirir.</p>
+          <h2>Bilgisayarlar boyle calisir</h2>
+          <p>Bilgisayarlar, onlara verilen sirali komutlari yerine getirir.</p>
         </article>
       </section>
 
       <section class="feature-band reveal">
         <div>
           <p class="eyebrow">Bu portalda neler var?</p>
-          <h2>4 kısa konu + 1 mini etkinlik</h2>
+          <h2>4 kisa konu + quiz + ogretmen paneli</h2>
         </div>
         <div class="feature-list">
-          <span>Basit örnekler</span>
-          <span>Günlük yaşam bağlantısı</span>
-          <span>Çocuk dostu anlatım</span>
-          <span>Kısa test</span>
+          <span>Basit ornekler</span>
+          <span>Gunluk yasam baglantisi</span>
+          <span>Cocuk dostu anlatim</span>
+          <span>10 soruluk quiz</span>
+          <span>Kayit ve giris</span>
+          <span>Sonuc paneli</span>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Algoritma Portalı • GitHub Pages için hazırlanmış statik web sitesi</p>
+      <p>Algoritma Portali • GitHub Pages icin hazirlanmis statik web sitesi</p>
     </footer>
   </div>
 
   <script src="script.js"></script>
+  <script src="portal-config.js"></script>
+  <script type="module" src="portal.js"></script>
 </body>
 </html>

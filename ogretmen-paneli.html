@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mini Lab</title>
-  <meta name="description" content="Algoritma konusunu pekistiren 10 soruluk quiz.">
+  <title>Ogretmen Paneli</title>
+  <meta name="description" content="Ogrenci quiz sonuclarini gosteren ogretmen paneli.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body data-quiz-page="true">
+<body data-teacher-page="true">
   <div class="page-shell">
     <header class="site-header">
       <a class="brand" href="index.html">Algoritma Portali</a>
@@ -19,52 +19,45 @@
         <a href="algoritma-nedir.html">Algoritma Nedir?</a>
         <a href="neden-onemli.html">Neden Onemli?</a>
         <a href="gunluk-hayat.html">Gunluk Hayat</a>
-        <a class="active" href="mini-lab.html">Mini Lab</a>
+        <a href="mini-lab.html">Mini Lab</a>
         <a href="giris.html">Giris</a>
-        <a href="ogretmen-paneli.html">Panel</a>
+        <a class="active" href="ogretmen-paneli.html">Panel</a>
       </nav>
     </header>
 
     <main class="content-page reveal">
       <section class="page-intro">
-        <p class="eyebrow">4. Durak</p>
-        <h1>Mini Lab</h1>
-        <p>Bu bolumde ogrenciler giris yapip 10 soruluk quiz cozer. Sonuclar kaydedilir.</p>
+        <p class="eyebrow">Yonetim</p>
+        <h1>Ogretmen Paneli</h1>
+        <p>Burada tum ogrencilerin quiz sonuclarini, dogru ve yanlis cevaplarini gorebilirsiniz.</p>
       </section>
 
       <section class="account-strip" data-session-status></section>
 
-      <section id="quiz-gate"></section>
+      <section id="teacher-gate"></section>
 
-      <section class="quiz-shell" id="quiz-shell" hidden>
+      <section id="teacher-dashboard" hidden>
+        <div class="dashboard-grid" id="teacher-stats"></div>
+
+        <div class="inline-actions">
+          <button class="button button-primary" type="button" id="download-results">Sonuclari indir</button>
+          <a class="button button-secondary" href="mini-lab.html">Quiz sayfasi</a>
+        </div>
+
         <article class="lab-card">
-          <h2>10 soruluk quiz</h2>
-          <p>Her soruyu dikkatlice oku. Gonder tusuna bastiginda dogru ve yanlislarini goreceksin.</p>
-
-          <form id="quiz-form" class="quiz-form">
-            <div id="quiz-body"></div>
-            <div class="inline-actions">
-              <button class="button button-primary" type="submit">Quiz gonder</button>
-              <a class="button button-secondary" href="giris.html">Hesap sayfasi</a>
-            </div>
-            <p class="auth-message" id="quiz-message" aria-live="polite"></p>
-          </form>
+          <h2>Sonuc tablosu</h2>
+          <div id="teacher-table"></div>
         </article>
 
         <article class="lab-card">
-          <h2>Son quiz sonucu</h2>
-          <div id="quiz-result" class="empty-state">Henuz quiz gonderilmedi.</div>
-        </article>
-
-        <article class="lab-card">
-          <h2>Gecmis denemelerim</h2>
-          <div id="student-attempts"></div>
+          <h2>Detayli cevaplar</h2>
+          <div id="teacher-details"></div>
         </article>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Quiz sonuclari bu surumde tarayici icinde saklanir.</p>
+      <p>Yerel surum: sonuclar ayni tarayici icinde tutulur.</p>
     </footer>
   </div>
 

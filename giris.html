@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giris ve Kayit</title>
+  <meta name="description" content="Ogrenci kaydi ve ogretmen girisi sayfasi.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-login-page="true">
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html">Algoritma Portali</a>
+      <nav class="site-nav" aria-label="Ana menu">
+        <a href="index.html">Ana Sayfa</a>
+        <a href="algoritma-nedir.html">Algoritma Nedir?</a>
+        <a href="neden-onemli.html">Neden Onemli?</a>
+        <a href="gunluk-hayat.html">Gunluk Hayat</a>
+        <a href="mini-lab.html">Mini Lab</a>
+        <a class="active" href="giris.html">Giris</a>
+        <a href="ogretmen-paneli.html">Panel</a>
+      </nav>
+    </header>
+
+    <main class="content-page reveal">
+      <section class="page-intro">
+        <p class="eyebrow">Yeni ozellik</p>
+        <h1>Giris ve Kayit</h1>
+        <p>Ogrenciler kayit olup quiz cozer. Ogretmen ise panelden tum sonuclari gorur.</p>
+      </section>
+
+      <section class="account-strip" data-session-status></section>
+
+      <section class="auth-layout">
+        <article class="auth-card">
+          <h2>Ogrenci kaydi</h2>
+          <form id="register-form" class="form-grid">
+            <label class="field">
+              <span>Ad soyad</span>
+              <input type="text" name="name" placeholder="Ornek: Ali Yilmaz">
+            </label>
+            <label class="field">
+              <span>Sinif</span>
+              <input type="text" name="className" placeholder="Ornek: 5/A">
+            </label>
+            <label class="field">
+              <span>E-posta</span>
+              <input type="email" name="email" placeholder="ogrenci@example.com">
+            </label>
+            <label class="field">
+              <span>Sifre</span>
+              <input type="password" name="password" placeholder="En az 4 karakter">
+            </label>
+            <button class="button button-primary" type="submit">Kayit Ol</button>
+          </form>
+          <p class="auth-message" id="register-message" aria-live="polite"></p>
+        </article>
+
+        <article class="auth-card">
+          <h2>Giris yap</h2>
+          <form id="login-form" class="form-grid">
+            <label class="field">
+              <span>E-posta</span>
+              <input type="email" name="email" placeholder="E-posta">
+            </label>
+            <label class="field">
+              <span>Sifre</span>
+              <input type="password" name="password" placeholder="Sifre">
+            </label>
+            <button class="button button-primary" type="submit">Giris Yap</button>
+          </form>
+          <p class="auth-message" id="login-message" aria-live="polite"></p>
+          <div id="active-session"></div>
+        </article>
+      </section>
+
+      <section class="callout-card">
+        <h2>Ogretmen girisi</h2>
+        <p>Varsayilan ogretmen hesabi bu yerel surumde hazir geliyor.</p>
+        <p><strong>E-posta:</strong> ogretmen@algoritma-portal.local</p>
+        <p><strong>Sifre:</strong> Ogretmen123</p>
+        <p>Bu hesap ile <a href="ogretmen-paneli.html">ogretmen paneline</a> girip tum quiz sonuclarini gorebilirsiniz.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Not: Bu surumde veriler tarayici icinde saklanir.</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+  <script src="portal-config.js"></script>
+  <script type="module" src="portal.js"></script>
+</body>
+</html>

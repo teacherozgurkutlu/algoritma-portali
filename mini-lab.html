@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini Lab</title>
+  <meta name="description" content="Algoritma konusunu pekiştiren kısa test ve sıralama etkinliği.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html">Algoritma Portalı</a>
+      <nav class="site-nav" aria-label="Ana menü">
+        <a href="index.html">Ana Sayfa</a>
+        <a href="algoritma-nedir.html">Algoritma Nedir?</a>
+        <a href="neden-onemli.html">Neden Önemli?</a>
+        <a href="gunluk-hayat.html">Günlük Hayat</a>
+        <a class="active" href="mini-lab.html">Mini Lab</a>
+      </nav>
+    </header>
+
+    <main class="content-page reveal">
+      <section class="page-intro">
+        <p class="eyebrow">4. Durak</p>
+        <h1>Mini Lab</h1>
+        <p>Şimdi öğrendiklerini kısa bir test ve sıralama oyunu ile deneyebilirsin.</p>
+      </section>
+
+      <section class="lab-grid">
+        <article class="lab-card">
+          <h2>Kısa test</h2>
+          <p>Soru: Aşağıdakilerden hangisi algoritmaya en iyi örnektir?</p>
+          <div class="quiz-options" data-quiz>
+            <button type="button" data-correct="false">Rastgele bir şey yapmak</button>
+            <button type="button" data-correct="true">Bir işi adım adım sırayla yapmak</button>
+            <button type="button" data-correct="false">Kuralsız oyun oynamak</button>
+          </div>
+          <p class="quiz-result" aria-live="polite"></p>
+        </article>
+
+        <article class="lab-card">
+          <h2>Sıralama etkinliği</h2>
+          <p>El yıkama adımlarını doğru sıraya koyduğunu kontrol et.</p>
+          <ol class="checklist">
+            <li>Elleri ıslat.</li>
+            <li>Sabun al.</li>
+            <li>Ellerini ovuştur.</li>
+            <li>Su ile durula.</li>
+            <li>Kurula.</li>
+          </ol>
+          <button class="button button-primary" type="button" id="sequence-check">Doğru mu?</button>
+          <p class="sequence-result" id="sequence-result" aria-live="polite"></p>
+        </article>
+      </section>
+
+      <section class="callout-card">
+        <h2>Harika sonuç</h2>
+        <p>
+          Eğer bir işin adımlarını açıkça söyleyebiliyorsan,
+          sen de bir algoritma kurabiliyorsun demektir.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Portal sonu • Ana sayfaya dönüp tekrar gezebilirsin</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

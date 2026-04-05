@@ -1,9 +1,5 @@
 const ROOT_FOLDER_NAME = "bilsemprj";
 const MAX_FILE_SIZE_MB = 20;
-const FIREBASE_API_KEY = "AIzaSyBKX4_Xqc45SjwnoAivJkEL7dGnaYwxyMM";
-const FIREBASE_PROJECT_ID = "algoritma-portali-2026";
-const FIREBASE_TEACHER_EMAIL = "kutluozgur79@gmail.com";
-const FIREBASE_TEACHER_PASSWORD = "Ogretmen123!";
 
 function doGet(e) {
   const template = HtmlService.createTemplateFromFile("upload");
@@ -65,8 +61,9 @@ function uploadProject(formObject) {
 }
 
 function persistProjectToFirestore_(requestId, formObject, file, projectTitle, description) {
-  const idToken = signInToFirebase_();
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/projects/${encodeURIComponent(requestId)}`;
+  const config = getFirebaseUploadConfig_();
+  const idToken = signInToFirebase_(config);
+  const url = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents/projects/${encodeURIComponent(requestId)}`;
   const payload = {
     fields: {
       requestId: { stringValue: requestId },
@@ -105,14 +102,14 @@ function persistProjectToFirestore_(requestId, formObject, file, projectTitle, d
   }
 }
 
-function signInToFirebase_() {
-  const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`;
+function signInToFirebase_(config) {
+  const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${config.apiKey}`;
   const response = UrlFetchApp.fetch(url, {
     method: "post",
     contentType: "application/json",
     payload: JSON.stringify({
-      email: FIREBASE_TEACHER_EMAIL,
-      password: FIREBASE_TEACHER_PASSWORD,
+      email: config.teacherEmail,
+      password: config.teacherPassword,
       returnSecureToken: true
     }),
     muteHttpExceptions: true
@@ -124,6 +121,24 @@ function signInToFirebase_() {
     throw new Error(`Firebase girisi basarisiz: ${response.getContentText()}`);
   }
   return body.idToken;
+}
+
+function getFirebaseUploadConfig_() {
+  const properties = PropertiesService.getScriptProperties();
+  return {
+    apiKey: getRequiredScriptProperty_(properties, "FIREBASE_API_KEY"),
+    projectId: getRequiredScriptProperty_(properties, "FIREBASE_PROJECT_ID"),
+    teacherEmail: getRequiredScriptProperty_(properties, "FIREBASE_TEACHER_EMAIL"),
+    teacherPassword: getRequiredScriptProperty_(properties, "FIREBASE_TEACHER_PASSWORD")
+  };
+}
+
+function getRequiredScriptProperty_(properties, key) {
+  const value = String(properties.getProperty(key) || "").trim();
+  if (!value) {
+    throw new Error(`Script property eksik: ${key}`);
+  }
+  return value;
 }
 
 function getOrCreateFolder_(name, parentFolder) {

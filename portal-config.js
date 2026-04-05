@@ -2,8 +2,7 @@ window.PORTAL_CONFIG = {
   storageMode: "firebase",
   admin: {
     name: "Ogretmen",
-    email: "kutluozgur79@gmail.com",
-    password: "Ogretmen123!"
+    email: "kutluozgur79@gmail.com"
   },
   googleDriveUpload: {
     webAppUrl: "https://script.google.com/macros/s/AKfycbyNkSmYvF4Zra6jLB14OVkepNMkSEeuTNUsFAv7Rk8C2brNc_fmBo2z7nZF12bap2jf/exec",

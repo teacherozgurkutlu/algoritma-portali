@@ -20,7 +20,8 @@ const STORAGE_KEYS = {
 };
 
 const PORTAL_CONFIG = window.PORTAL_CONFIG || {};
-const ADMIN_CONFIG = PORTAL_CONFIG.admin || { name: "Ogretmen", email: "ogretmen@algoritma-portal.local", password: "Ogretmen123" };
+const ADMIN_CONFIG = PORTAL_CONFIG.admin || { name: "Ogretmen", email: "ogretmen@algoritma-portal.local" };
+const LOCAL_ADMIN_PASSWORD = String(PORTAL_CONFIG.admin?.localPassword || "YerelOgretmen123!");
 const FIREBASE_CONFIG = PORTAL_CONFIG.firebase || { teacherEmails: [], config: {} };
 const GOOGLE_DRIVE_UPLOAD_CONFIG = PORTAL_CONFIG.googleDriveUpload || { webAppUrl: "", folderName: "bilsemprj", maxFileSizeMb: 20 };
 
@@ -136,7 +137,7 @@ function buildLocalDataLayer() {
       name: ADMIN_CONFIG.name || "Ogretmen",
       className: "Ogretmen",
       email: adminEmail,
-      password: ADMIN_CONFIG.password,
+      password: LOCAL_ADMIN_PASSWORD,
       createdAt: new Date().toISOString()
     };
     users.push(teacher);

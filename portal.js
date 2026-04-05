@@ -13,8 +13,7 @@ import {
 const PORTAL_CONFIG = window.PORTAL_CONFIG || {};
 const ADMIN_CONFIG = PORTAL_CONFIG.admin || {
   name: "Ogretmen",
-  email: "ogretmen@algoritma-portal.local",
-  password: "Ogretmen123"
+  email: "ogretmen@algoritma-portal.local"
 };
 
 const state = {
@@ -108,7 +107,7 @@ function renderFirebaseSetupWarning() {
     return;
   }
 
-  if (!isGoogleDriveUploadConfigured() && document.querySelector("[data-quiz-page]")) {
+  if (!isGoogleDriveUploadConfigured() && (document.querySelector("[data-quiz-page]") || document.querySelector("[data-project-page]"))) {
     const uploadConfig = getGoogleDriveUploadConfig();
     host.innerHTML = `
       <div class="gate-card">
@@ -141,8 +140,8 @@ function renderTeacherLoginNote() {
 
   host.innerHTML = `
     <p><strong>E-posta:</strong> ${escapeHtml(ADMIN_CONFIG.email)}</p>
-    <p><strong>Sifre:</strong> ${escapeHtml(ADMIN_CONFIG.password)}</p>
-    <p>Bu hesap ile <a href="ogretmen-paneli.html">ogretmen paneline</a> girip quiz, proje ve mesajlasma alanlarini gorebilirsiniz.</p>
+    <p>Yerel modda ogretmen girisi icin <code>admin.localPassword</code> ayari kullanilir. Firebase modunda ise kendi sifrenizle giris yapin.</p>
+    <p>Bu hesap ile <a href="ogretmen-paneli.html">ogretmen paneline</a> ve <a href="proje-yonetimi.html">proje yonetimi</a> sayfasina erisebilirsiniz.</p>
   `;
 }
 
@@ -1086,7 +1085,7 @@ function renderLoginPage() {
 
   if (state.currentUser) {
     const nextLink = state.currentUser.role === "teacher" ? "ogretmen-paneli.html" : "mini-lab.html";
-    const nextText = state.currentUser.role === "teacher" ? "Ogretmen paneline git" : "Quiz ve proje alanina git";
+    const nextText = state.currentUser.role === "teacher" ? "Ogretmen paneline git" : "Quiz sayfasina git";
     activeSession.innerHTML = `
       <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong></div>
       <div class="inline-actions">
@@ -1177,7 +1176,7 @@ function renderQuizPage() {
   }
 
   if (state.currentUser.role === "teacher") {
-    gate.innerHTML = `<div class="gate-card"><h2>Ogretmen hesabi ile acik</h2><p>Ogretmenler quiz yerine ogrenci sonuc, proje ve mesaj panelini kullanir.</p><a class="button button-primary" href="ogretmen-paneli.html">Ogretmen Paneli</a></div>`;
+    gate.innerHTML = `<div class="gate-card"><h2>Ogretmen hesabi ile acik</h2><p>Ogretmenler quiz yerine ogrenci sonuc paneli ve proje yonetimi sayfasini kullanir.</p><div class="inline-actions"><a class="button button-primary" href="ogretmen-paneli.html">Ogretmen Paneli</a><a class="button button-secondary" href="proje-yonetimi.html">Proje Yonetimi</a></div></div>`;
     shell.hidden = true;
     return;
   }
@@ -1186,7 +1185,6 @@ function renderQuizPage() {
   shell.hidden = false;
   quizBody.innerHTML = renderQuizQuestions();
   renderStudentAttempts(state.currentUser.id);
-  startStudentWorkspaceSubscription(state.currentUser.id);
 
   if (quizForm && !quizForm.dataset.bound) {
     quizForm.dataset.bound = "true";
@@ -1210,6 +1208,85 @@ function renderQuizPage() {
       }
     });
   }
+}
+
+async function renderProjectManagementPage() {
+  if (!document.querySelector("[data-project-page]")) {
+    return;
+  }
+
+  const studentGate = document.getElementById("project-student-gate");
+  const teacherGate = document.getElementById("project-teacher-gate");
+  const studentShell = document.getElementById("project-student-shell");
+  const teacherShell = document.getElementById("project-teacher-shell");
+  const teacherStats = document.getElementById("project-teacher-stats");
+
+  if (!state.currentUser) {
+    const gateMarkup = `<div class="gate-card"><h2>Proje yonetimi icin giris gerekli</h2><p>Ogrenci veya ogretmen hesabi ile giris yapmalisiniz.</p><a class="button button-primary" href="giris.html">Giris Yap</a></div>`;
+    if (studentGate) studentGate.innerHTML = gateMarkup;
+    if (teacherGate) {
+      teacherGate.innerHTML = "";
+      teacherGate.hidden = true;
+    }
+    if (studentShell) studentShell.hidden = true;
+    if (teacherShell) teacherShell.hidden = true;
+    return;
+  }
+
+  if (state.currentUser.role === "student") {
+    if (teacherShell) teacherShell.hidden = true;
+    if (teacherGate) teacherGate.hidden = true;
+    if (studentGate) studentGate.hidden = true;
+    if (studentShell) studentShell.hidden = false;
+    startStudentWorkspaceSubscription(state.currentUser.id);
+    return;
+  }
+
+  if (studentShell) studentShell.hidden = true;
+  if (studentGate) studentGate.hidden = true;
+  if (teacherGate) teacherGate.hidden = true;
+  if (teacherShell) teacherShell.hidden = false;
+
+  if (state.teacherSnapshotUnsubscribe) {
+    state.teacherSnapshotUnsubscribe();
+  }
+
+  const renderProjectPageTeacher = (snapshot) => {
+    state.teacherSnapshot = snapshot;
+    if (teacherStats) {
+      const students = snapshot.students || [];
+      const projects = snapshot.projects || [];
+      const messages = snapshot.messages || [];
+      const reviewedCount = projects.filter((project) => project.reviewText).length;
+      teacherStats.innerHTML = `
+        <article class="stat-card"><span>Kayitli ogrenci</span><strong>${students.length}</strong></article>
+        <article class="stat-card"><span>Yuklenen proje</span><strong>${projects.length}</strong></article>
+        <article class="stat-card"><span>Degerlendirilen</span><strong>${reviewedCount}</strong></article>
+        <article class="stat-card"><span>Toplam mesaj</span><strong>${messages.length}</strong></article>
+      `;
+    }
+    bindTeacherWorkspaceActions();
+    renderTeacherProjectWorkspace(snapshot);
+  };
+
+  try {
+    renderProjectPageTeacher(await state.dataLayer.getTeacherSnapshot());
+  } catch (error) {
+    const workspace = document.getElementById("teacher-project-workspace");
+    if (workspace) {
+      workspace.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
+    }
+  }
+
+  state.teacherSnapshotUnsubscribe = state.dataLayer.subscribeTeacherSnapshot(
+    (snapshot) => renderProjectPageTeacher(snapshot),
+    (error) => {
+      const workspace = document.getElementById("teacher-project-workspace");
+      if (workspace) {
+        workspace.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
+      }
+    }
+  );
 }
 
 function renderTeacherStats(snapshot) {
@@ -1324,6 +1401,7 @@ async function initPortal() {
   renderFirebaseSetupWarning();
   renderLoginPage();
   renderQuizPage();
+  await renderProjectManagementPage();
   await renderTeacherDashboard();
 }
 

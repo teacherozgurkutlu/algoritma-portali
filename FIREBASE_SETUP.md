@@ -13,6 +13,7 @@ Bu proje Firebase'e hazir durumdadir. Canli cok kullanicili kullanim icin su bil
    - `googleDriveUpload.webAppUrl`
 6. `firestore.rules` icindeki ogretmen e-posta kontrolunu gercek ogretmen e-postasi ile eslestirme
 7. Google Drive yukleme icin `google-drive-upload` klasorundeki Apps Script ornegini ayaga kaldirma
+8. Apps Script icindeki Firebase baglanti bilgilerini `Script properties` olarak tanimlama
 
 Dosyalar hazir:
 
@@ -32,6 +33,7 @@ Dosyalar hazir:
 ## Google Drive yukleme akisi
 
 1. `google-drive-upload/Code.gs` ve `google-drive-upload/upload.html` dosyalarini yeni bir Apps Script projesine kopyalayin.
-2. Scripti web app olarak `Execute as: Me` seklinde yayinlayin.
-3. Uretilen web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina girin.
-4. Portal artik ogrenciler icin yukleme popup'ini acacak ve yuklenen dosyalar sizin Drive hesabinizdaki `bilsemprj` klasorune kaydedilecektir.
+2. `Project Settings > Script properties` altinda `FIREBASE_API_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_TEACHER_EMAIL`, `FIREBASE_TEACHER_PASSWORD` alanlarini tanimlayin.
+3. Scripti web app olarak `Execute as: Me` seklinde yayinlayin.
+4. Uretilen web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina girin.
+5. Portal artik ogrenciler icin yukleme popup'ini acacak ve yuklenen dosyalar sizin Drive hesabinizdaki `bilsemprj` klasorune kaydedilecektir.

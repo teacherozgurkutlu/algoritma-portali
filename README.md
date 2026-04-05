@@ -9,8 +9,9 @@ Bu proje, 5. sinif ogrencileri icin hazirlanmis algoritma portalidir.
 - `neden-onemli.html`: Neden onemli oldugu
 - `gunluk-hayat.html`: Gunluk hayat ornekleri
 - `giris.html`: Ogrenci kaydi ve giris
-- `mini-lab.html`: Quiz, proje yukleme ve ogrenci mesajlasma alani
-- `ogretmen-paneli.html`: Quiz sonuclari, proje degerlendirme ve mesajlasma paneli
+- `mini-lab.html`: Quiz alani
+- `proje-yonetimi.html`: Proje yukleme, degerlendirme ve mesajlasma alani
+- `ogretmen-paneli.html`: Quiz sonuclari ve analiz paneli
 
 ## Veri modlari
 
@@ -24,6 +25,7 @@ Aktif mod `portal-config.js` dosyasindan belirlenir.
 - Ogrenci kaydi ve girisi
 - Quiz sonuclarinin kaydi
 - Ogrencinin proje dosyasini Google Drive uzerindeki `bilsemprj` klasorune yukleme akisi
+- Ayrik proje yonetimi sayfasi
 - Ogretmenin proje degerlendirmesi yazabilmesi
 - Ogrenci ve ogretmen arasinda iki yonlu mesajlasma
 
@@ -45,8 +47,15 @@ Kurulum ozeti:
 
 1. `google-drive-upload/Code.gs` ve `google-drive-upload/upload.html` dosyalarini yeni bir Apps Script projesine ekleyin.
 2. Scripti web app olarak yayinlayin. Calisma hesabi sizin Google hesabiniz olsun.
-3. Web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina yapistirin.
-4. Script ilk yuklemede Drive icinde `bilsemprj` klasorunu olusturur ve ogrenci bazli alt klasorler acar.
+3. Apps Script icinde gerekli Firebase bilgilerinin `Script properties` olarak tanimlandigindan emin olun.
+4. Web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina yapistirin.
+5. Script ilk yuklemede Drive icinde `bilsemprj` klasorunu olusturur ve ogrenci bazli alt klasorler acar.
+
+## Guvenlik notu
+
+- Firebase `apiKey`, `authDomain`, `projectId` gibi istemci ayarlari tek basina gizli kabul edilmez.
+- Gercek kullanici sifreleri repoda tutulmamalidir.
+- Apps Script tarafinda gerekli gizli bilgiler repoya yazilmak yerine `Script properties` icinde saklanmalidir.
 
 ## Onemli not
 

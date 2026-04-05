@@ -202,7 +202,12 @@
         return;
       }
 
-      var encodedPayload = encodeURIComponent(JSON.stringify(payload));
+      var callbackPayload = Object.assign({}, payload, {
+        studentName: bootstrap.studentName,
+        className: bootstrap.className,
+        email: bootstrap.email
+      });
+      var encodedPayload = encodeURIComponent(JSON.stringify(callbackPayload));
       var callbackUrl = bootstrap.portalOrigin + "/upload-callback.html?requestId=" + encodeURIComponent(bootstrap.requestId) + "&payload=" + encodedPayload;
       window.location.replace(callbackUrl);
     }

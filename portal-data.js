@@ -73,6 +73,7 @@ export function getModeLabel() {
 
 function buildProjectRecord(user, payload, overrides = {}) {
   return {
+    requestId: String(payload.requestId || ""),
     userId: user.id,
     studentName: user.name,
     className: user.className,
@@ -193,10 +194,17 @@ function buildLocalDataLayer() {
     async listAttemptsForUser(userId) { return sortAttemptsNewestFirst(getAttempts().filter((attempt) => attempt.userId === userId)); },
     async saveProjectRecord(user, payload) {
       const projects = getProjects();
-      projects.push({
-        id: createId("project"),
+      const projectId = payload.requestId || createId("project");
+      const existingIndex = projects.findIndex((item) => item.id === projectId);
+      const record = {
+        id: projectId,
         ...buildProjectRecord(user, payload, { uploadedAt: new Date().toISOString() })
-      });
+      };
+      if (existingIndex >= 0) {
+        projects[existingIndex] = { ...projects[existingIndex], ...record };
+      } else {
+        projects.push(record);
+      }
       saveProjects(projects);
     },
     async listProjectsForUser(userId) { return sortProjectsNewestFirst(getProjects().filter((project) => project.userId === userId)); },
@@ -358,14 +366,19 @@ async function buildFirebaseDataLayer() {
       return sortAttemptsNewestFirst(snapshot.docs.map(mapAttempt));
     },
     async saveProjectRecord(user, payload) {
-      await addDoc(collection(db, "projects"), {
+      const record = {
         ...buildProjectRecord(user, payload, {
           uploadedAt: serverTimestamp(),
           reviewUpdatedAt: null,
           reviewUpdatedBy: null,
           reviewUpdatedByName: null
         })
-      });
+      };
+      if (payload.requestId) {
+        await setDoc(doc(db, "projects", payload.requestId), record, { merge: true });
+        return;
+      }
+      await addDoc(collection(db, "projects"), record);
     },
     async listProjectsForUser(userId) {
       const snapshot = await getDocs(query(collection(db, "projects"), where("userId", "==", userId)));

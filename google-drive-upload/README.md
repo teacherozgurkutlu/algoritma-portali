@@ -16,4 +16,5 @@ Bu klasor, ogrenci dosyalarini ogretmenin Google Drive hesabindaki `bilsemprj` k
 - `bilsemprj` klasorunu bulur, yoksa olusturur.
 - Her ogrenci icin ayri alt klasor acar.
 - Yuklenen dosyayi ilgili ogrenci klasorune kaydeder.
+- Firestore `projects` koleksiyonuna proje kaydi olusturur.
 - Portal penceresine dosya metaverisini geri yollar.

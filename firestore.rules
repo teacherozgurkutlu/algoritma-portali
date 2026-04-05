@@ -39,7 +39,7 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isTeacher() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
       allow read: if isTeacher() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow update: if isTeacher();
       allow delete: if false;

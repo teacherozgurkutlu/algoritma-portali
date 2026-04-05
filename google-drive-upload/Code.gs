@@ -1,5 +1,9 @@
 const ROOT_FOLDER_NAME = "bilsemprj";
 const MAX_FILE_SIZE_MB = 20;
+const FIREBASE_API_KEY = "AIzaSyBKX4_Xqc45SjwnoAivJkEL7dGnaYwxyMM";
+const FIREBASE_PROJECT_ID = "algoritma-portali-2026";
+const FIREBASE_TEACHER_EMAIL = "kutluozgur79@gmail.com";
+const FIREBASE_TEACHER_PASSWORD = "Ogretmen123!";
 
 function doGet(e) {
   const template = HtmlService.createTemplateFromFile("upload");
@@ -42,9 +46,12 @@ function uploadProject(formObject) {
   const finalName = `${timestamp}-${sanitizeFileName_(projectTitle)}${extension}`;
   const uploadBlob = fileBlob.copyBlob().setName(finalName);
   const file = studentFolder.createFile(uploadBlob);
+  const requestId = String(formObject.requestId || Utilities.getUuid());
+
+  persistProjectToFirestore_(requestId, formObject, file, projectTitle, description);
 
   return {
-    requestId: String(formObject.requestId || ""),
+    requestId,
     studentId: String(formObject.studentId || ""),
     title: projectTitle,
     description,
@@ -55,6 +62,68 @@ function uploadProject(formObject) {
     size: file.getSize(),
     uploadedAt: new Date().toISOString()
   };
+}
+
+function persistProjectToFirestore_(requestId, formObject, file, projectTitle, description) {
+  const idToken = signInToFirebase_();
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/projects/${encodeURIComponent(requestId)}`;
+  const payload = {
+    fields: {
+      requestId: { stringValue: requestId },
+      userId: { stringValue: String(formObject.studentId || "") },
+      studentName: { stringValue: String(formObject.studentName || "") },
+      className: { stringValue: String(formObject.className || "") },
+      email: { stringValue: String(formObject.email || "") },
+      title: { stringValue: projectTitle },
+      description: { stringValue: description },
+      driveFileId: { stringValue: file.getId() },
+      driveFileUrl: { stringValue: file.getUrl() },
+      driveFileName: { stringValue: file.getName() },
+      mimeType: { stringValue: file.getMimeType() },
+      size: { integerValue: String(file.getSize()) },
+      reviewText: { stringValue: "" },
+      reviewUpdatedAt: { nullValue: null },
+      reviewUpdatedBy: { nullValue: null },
+      reviewUpdatedByName: { nullValue: null },
+      uploadedAt: { timestampValue: new Date().toISOString() }
+    }
+  };
+
+  const response = UrlFetchApp.fetch(url, {
+    method: "patch",
+    contentType: "application/json",
+    headers: {
+      Authorization: `Bearer ${idToken}`
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const status = response.getResponseCode();
+  if (status < 200 || status >= 300) {
+    throw new Error(`Firestore kaydi olusturulamadi: ${response.getContentText()}`);
+  }
+}
+
+function signInToFirebase_() {
+  const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`;
+  const response = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      email: FIREBASE_TEACHER_EMAIL,
+      password: FIREBASE_TEACHER_PASSWORD,
+      returnSecureToken: true
+    }),
+    muteHttpExceptions: true
+  });
+
+  const status = response.getResponseCode();
+  const body = JSON.parse(response.getContentText());
+  if (status < 200 || status >= 300 || !body.idToken) {
+    throw new Error(`Firebase girisi basarisiz: ${response.getContentText()}`);
+  }
+  return body.idToken;
 }
 
 function getOrCreateFolder_(name, parentFolder) {

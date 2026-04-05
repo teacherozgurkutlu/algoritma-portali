@@ -34,6 +34,8 @@ const state = {
   }
 };
 
+const UPLOAD_CALLBACK_STORAGE_PREFIX = "algoritmaUploadCallback:";
+
 function friendlyErrorMessage(error) {
   const text = String(error?.message || error || "");
 
@@ -747,6 +749,19 @@ function cleanupDriveUploadBridge() {
   state.driveUploadBridge = null;
 }
 
+function readUploadCallbackPayload(requestId) {
+  try {
+    const raw = localStorage.getItem(`${UPLOAD_CALLBACK_STORAGE_PREFIX}${requestId}`);
+    if (!raw) {
+      return null;
+    }
+    localStorage.removeItem(`${UPLOAD_CALLBACK_STORAGE_PREFIX}${requestId}`);
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 function openDriveUploadPopup() {
   if (!isGoogleDriveUploadConfigured()) {
     return Promise.reject(new Error("UPLOAD_NOT_CONFIGURED"));
@@ -780,6 +795,13 @@ function openDriveUploadPopup() {
 
   return new Promise((resolve, reject) => {
     const pollTimer = window.setInterval(() => {
+      const callbackPayload = readUploadCallbackPayload(requestId);
+      if (callbackPayload) {
+        cleanupDriveUploadBridge();
+        resolve(callbackPayload);
+        return;
+      }
+
       if (popup.closed) {
         cleanupDriveUploadBridge();
         reject(new Error("UPLOAD_CANCELLED"));

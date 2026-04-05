@@ -65,6 +65,7 @@
 
       try {
         var payload = JSON.parse(payloadText);
+        localStorage.setItem("algoritmaUploadCallback:" + requestId, JSON.stringify(payload));
         if (window.opener) {
           window.opener.postMessage({
             type: "google-drive-upload-complete",

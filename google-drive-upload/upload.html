@@ -195,6 +195,30 @@
       }, bootstrap.portalOrigin || "*");
     }
 
+    function finalizeAndClose() {
+      statusNode.textContent = "Yukleme tamamlandi. Pencere kapatiliyor...";
+
+      setTimeout(function() {
+        try {
+          window.close();
+        } catch (error) {}
+
+        setTimeout(function() {
+          try {
+            window.open("", "_self");
+            window.close();
+          } catch (error) {}
+
+          statusNode.textContent = "Yukleme tamamlandi. Bu pencereyi kapatabilirsiniz.";
+          submitButton.textContent = "Pencereyi kapat";
+          submitButton.disabled = false;
+          submitButton.onclick = function() {
+            window.close();
+          };
+        }, 800);
+      }, 400);
+    }
+
     function submitUpload(button) {
       var form = document.getElementById("upload-form");
       var fileInput = form.projectFile;
@@ -212,9 +236,8 @@
 
       google.script.run
         .withSuccessHandler(function(result) {
-          statusNode.textContent = "Yukleme tamamlandi. Pencere kapatiliyor...";
           postToPortal("google-drive-upload-complete", result);
-          setTimeout(function() { window.close(); }, 600);
+          finalizeAndClose();
         })
         .withFailureHandler(function(error) {
           var message = (error && error.message) || "Yukleme basarisiz oldu.";

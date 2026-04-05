@@ -208,17 +208,8 @@
       submitButton.disabled = true;
       statusNode.textContent = "Dosya Google Drive'a yukleniyor...";
 
-      const payload = {
-        requestId: form.requestId.value,
-        portalOrigin: form.portalOrigin.value,
-        studentId: form.studentId.value,
-        studentName: form.studentName.value,
-        className: form.className.value,
-        email: form.email.value,
-        projectTitle: form.projectTitle.value.trim(),
-        description: form.description.value.trim(),
-        projectFile: file
-      };
+      form.projectTitle.value = form.projectTitle.value.trim();
+      form.description.value = form.description.value.trim();
 
       google.script.run
         .withSuccessHandler((result) => {
@@ -232,7 +223,7 @@
           submitButton.disabled = false;
           postToPortal("google-drive-upload-error", { message });
         })
-        .uploadProject(payload);
+        .uploadProject(form);
     });
   </script>
 </body>

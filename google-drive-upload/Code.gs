@@ -37,9 +37,7 @@ function uploadProject(formObject) {
   const className = sanitizeText_(formObject.className) || "Sinif-yok";
   const rootFolder = getOrCreateFolder_(ROOT_FOLDER_NAME, DriveApp.getRootFolder());
   const studentFolder = getOrCreateFolder_(`${studentName} - ${className}`, rootFolder);
-  const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd-HHmmss");
-  const extension = getFileExtension_(fileBlob.getName());
-  const finalName = `${timestamp}-${sanitizeFileName_(projectTitle)}${extension}`;
+  const finalName = sanitizeFileName_(fileBlob.getName());
   const uploadBlob = fileBlob.copyBlob().setName(finalName);
   const file = studentFolder.createFile(uploadBlob);
   const requestId = String(formObject.requestId || Utilities.getUuid());
@@ -156,15 +154,5 @@ function sanitizeText_(value) {
 function sanitizeFileName_(value) {
   return sanitizeText_(value)
     .replace(/[\\/:*?"<>|]/g, "-")
-    .replace(/\s+/g, "-")
-    .slice(0, 80) || "proje";
-}
-
-function getFileExtension_(fileName) {
-  const name = String(fileName || "").trim();
-  const dotIndex = name.lastIndexOf(".");
-  if (dotIndex <= 0) {
-    return "";
-  }
-  return name.slice(dotIndex);
+    .slice(0, 180) || "proje";
 }

@@ -6,7 +6,7 @@ window.PORTAL_CONFIG = {
     password: "Ogretmen123!"
   },
   googleDriveUpload: {
-    webAppUrl: "",
+    webAppUrl: "https://script.google.com/macros/s/AKfycbyNkSmYvF4Zra6jLB14OVkepNMkSEeuTNUsFAv7Rk8C2brNc_fmBo2z7nZF12bap2jf/exec",
     folderName: "bilsemprj",
     maxFileSizeMb: 20
   },

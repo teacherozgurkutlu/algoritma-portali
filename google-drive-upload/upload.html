@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BILSEM Proje Yukleme</title>
+  <base target="_top">
   <style>
     :root {
       color-scheme: light;
@@ -147,7 +148,7 @@
         </div>
       </div>
 
-      <form id="upload-form">
+      <form id="upload-form" onsubmit="return false;">
         <input type="hidden" name="requestId" value="<?= data.requestId ?>">
         <input type="hidden" name="portalOrigin" value="<?= data.portalOrigin ?>">
         <input type="hidden" name="studentId" value="<?= data.studentId ?>">
@@ -171,17 +172,16 @@
         </label>
 
         <p>Onerilen en yuksek boyut: <?= data.maxFileSizeMb ?> MB</p>
-        <button type="submit" id="submit-button">Drive'a yukle</button>
+        <button type="button" id="submit-button" onclick="submitUpload(this)">Drive'a yukle</button>
         <p class="status" id="status" aria-live="polite"></p>
       </form>
     </div>
   </div>
 
   <script>
-    const bootstrap = <?= JSON.stringify(data) ?>;
-    const form = document.getElementById("upload-form");
-    const statusNode = document.getElementById("status");
-    const submitButton = document.getElementById("submit-button");
+    var bootstrap = <?= JSON.stringify(data) ?>;
+    var statusNode = document.getElementById("status");
+    var submitButton = document.getElementById("submit-button");
 
     function postToPortal(type, payload) {
       if (!window.opener) {
@@ -195,36 +195,35 @@
       }, bootstrap.portalOrigin || "*");
     }
 
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-
-      const fileInput = form.projectFile;
-      const file = fileInput.files && fileInput.files[0];
+    function submitUpload(button) {
+      var form = document.getElementById("upload-form");
+      var fileInput = form.projectFile;
+      var file = fileInput.files && fileInput.files[0];
       if (!file) {
         statusNode.textContent = "Lutfen dosya secin.";
         return;
       }
 
-      submitButton.disabled = true;
+      button.disabled = true;
       statusNode.textContent = "Dosya Google Drive'a yukleniyor...";
 
       form.projectTitle.value = form.projectTitle.value.trim();
       form.description.value = form.description.value.trim();
 
       google.script.run
-        .withSuccessHandler((result) => {
+        .withSuccessHandler(function(result) {
           statusNode.textContent = "Yukleme tamamlandi. Pencere kapatiliyor...";
           postToPortal("google-drive-upload-complete", result);
-          setTimeout(() => window.close(), 600);
+          setTimeout(function() { window.close(); }, 600);
         })
-        .withFailureHandler((error) => {
-          const message = (error && error.message) || "Yukleme basarisiz oldu.";
+        .withFailureHandler(function(error) {
+          var message = (error && error.message) || "Yukleme basarisiz oldu.";
           statusNode.textContent = message;
-          submitButton.disabled = false;
+          button.disabled = false;
           postToPortal("google-drive-upload-error", { message });
         })
         .uploadProject(form);
-    });
+    }
   </script>
 </body>
 </html>

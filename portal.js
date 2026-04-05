@@ -8,7 +8,7 @@ import {
   getTeacherEmails,
   isFirebaseModeConfigured,
   isGoogleDriveUploadConfigured
-} from "./portal-data.js";
+} from "./portal-data.js?v=20260406-1";
 
 const PORTAL_CONFIG = window.PORTAL_CONFIG || {};
 const ADMIN_CONFIG = PORTAL_CONFIG.admin || {
@@ -182,7 +182,12 @@ function evaluateQuiz(formData) {
   });
 
   const correctCount = answers.filter((answer) => answer.isCorrect).length;
-  return { score: correctCount * 10, correctCount, wrongCount: QUIZ_QUESTIONS.length - correctCount, answers };
+  return {
+    score: Math.round((correctCount / QUIZ_QUESTIONS.length) * 100),
+    correctCount,
+    wrongCount: QUIZ_QUESTIONS.length - correctCount,
+    answers
+  };
 }
 
 function renderQuizResult(result) {

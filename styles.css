@@ -284,6 +284,67 @@ body::after {
   gap: 24px;
 }
 
+.lesson-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.visual-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow);
+}
+
+.content-figure {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.content-figure img {
+  width: 100%;
+  display: block;
+  border-radius: calc(var(--radius-xl) - 6px);
+}
+
+.content-figure figcaption {
+  color: var(--ink-soft);
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.split-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.72fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.mini-steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.9;
+}
+
+.mini-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mini-pills span {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(31, 154, 165, 0.12);
+  font-weight: 800;
+}
+
 .stack-section,
 .timeline {
   display: grid;
@@ -897,6 +958,7 @@ body::after {
 @media (max-width: 900px) {
   .site-header,
   .hero,
+  .lesson-hero,
   .feature-band,
   .grid-section,
   .lab-grid,
@@ -915,6 +977,10 @@ body::after {
 
   .site-nav {
     justify-content: flex-start;
+  }
+
+  .split-card {
+    grid-template-columns: 1fr;
   }
 }
 

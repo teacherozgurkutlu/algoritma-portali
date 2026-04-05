@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yukleme Tamamlandi</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      font-family: Arial, sans-serif;
+      background: #fffaf0;
+      color: #17324d;
+    }
+
+    .card {
+      width: min(480px, 100%);
+      padding: 24px;
+      border: 1px solid rgba(23, 50, 77, 0.14);
+      border-radius: 20px;
+      background: #fff;
+      text-align: center;
+      box-shadow: 0 18px 45px rgba(23, 50, 77, 0.12);
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    p {
+      line-height: 1.6;
+      color: #5b7188;
+    }
+
+    button {
+      min-height: 46px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 999px;
+      background: #1f9aa5;
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Yukleme Tamamlandi</h1>
+    <p id="status">Portal bilgilendiriliyor...</p>
+    <button type="button" id="close-button" hidden>Pencereyi kapat</button>
+  </div>
+
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var requestId = params.get("requestId") || "";
+      var payloadText = params.get("payload") || "";
+      var statusNode = document.getElementById("status");
+      var closeButton = document.getElementById("close-button");
+
+      try {
+        var payload = JSON.parse(payloadText);
+        if (window.opener) {
+          window.opener.postMessage({
+            type: "google-drive-upload-complete",
+            requestId: requestId,
+            payload: payload
+          }, window.location.origin);
+        }
+        statusNode.textContent = "Portal bilgilendirildi. Bu pencere kapanabilir.";
+      } catch (error) {
+        statusNode.textContent = "Portal bilgilendirilemedi. Bu pencereyi kapatip sayfayi yenileyin.";
+      }
+
+      closeButton.hidden = false;
+      closeButton.onclick = function() {
+        window.close();
+      };
+
+      setTimeout(function() {
+        try {
+          window.close();
+        } catch (error) {}
+      }, 500);
+    })();
+  </script>
+</body>
+</html>

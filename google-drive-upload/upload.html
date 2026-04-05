@@ -195,6 +195,18 @@
       }, bootstrap.portalOrigin || "*");
     }
 
+    function redirectToPortalCallback(payload) {
+      if (!bootstrap.portalOrigin) {
+        postToPortal("google-drive-upload-complete", payload);
+        finalizeAndClose();
+        return;
+      }
+
+      var encodedPayload = encodeURIComponent(JSON.stringify(payload));
+      var callbackUrl = bootstrap.portalOrigin + "/upload-callback.html?requestId=" + encodeURIComponent(bootstrap.requestId) + "&payload=" + encodedPayload;
+      window.location.replace(callbackUrl);
+    }
+
     function finalizeAndClose() {
       statusNode.textContent = "Yukleme tamamlandi. Pencere kapatiliyor...";
 
@@ -236,8 +248,7 @@
 
       google.script.run
         .withSuccessHandler(function(result) {
-          postToPortal("google-drive-upload-complete", result);
-          finalizeAndClose();
+          redirectToPortalCallback(result);
         })
         .withFailureHandler(function(error) {
           var message = (error && error.message) || "Yukleme basarisiz oldu.";

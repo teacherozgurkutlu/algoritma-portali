@@ -1194,7 +1194,7 @@ function renderQuizPage() {
       const formData = new FormData(quizForm);
       const answeredCount = QUIZ_QUESTIONS.filter((_, index) => formData.get(`q-${index}`) !== null).length;
       if (answeredCount !== QUIZ_QUESTIONS.length) {
-        quizMessage.textContent = "Lutfen 10 sorunun tamamini cevapla.";
+        quizMessage.textContent = `Lutfen ${QUIZ_QUESTIONS.length} sorunun tamamini cevapla.`;
         return;
       }
       try {

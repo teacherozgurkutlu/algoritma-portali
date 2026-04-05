@@ -442,6 +442,23 @@ body::after {
   border-color: rgba(31, 154, 165, 0.45);
 }
 
+.field textarea,
+.teacher-tools select {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  font: inherit;
+}
+
+.field textarea:focus,
+.teacher-tools select:focus,
+.teacher-tools input:focus {
+  outline: 2px solid rgba(31, 154, 165, 0.25);
+  border-color: rgba(31, 154, 165, 0.45);
+}
+
 .auth-message {
   min-height: 28px;
   margin: 12px 0 0;
@@ -596,7 +613,7 @@ body::after {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
   margin-bottom: 18px;
 }
@@ -617,12 +634,6 @@ body::after {
 .teacher-tools select,
 .teacher-tools input {
   min-height: 48px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.96);
-  color: var(--ink);
-  font: inherit;
 }
 
 .tool-actions {
@@ -758,6 +769,118 @@ body::after {
   letter-spacing: 0.04em;
 }
 
+.muted-text {
+  color: var(--ink-soft) !important;
+}
+
+.project-upload-card,
+.teacher-student-content,
+.teacher-student-column,
+.project-list,
+.project-card,
+.review-block,
+.message-form,
+.chat-thread {
+  display: grid;
+  gap: 14px;
+}
+
+.project-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.project-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.project-head h3,
+.teacher-student-column h3,
+.review-block h4 {
+  margin: 0;
+  font-family: "Baloo 2", cursive;
+}
+
+.project-head p,
+.review-block p {
+  margin: 4px 0 0;
+}
+
+.review-textarea,
+.message-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.review-display {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: rgba(31, 154, 165, 0.08);
+  line-height: 1.7;
+}
+
+.inline-note {
+  align-self: center;
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+
+.chat-thread {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chat-bubble {
+  padding: 14px 16px;
+  border-radius: 18px;
+  line-height: 1.65;
+}
+
+.chat-bubble-self {
+  background: rgba(31, 154, 165, 0.14);
+}
+
+.chat-bubble-other {
+  background: rgba(255, 209, 102, 0.28);
+}
+
+.chat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.chat-bubble p {
+  margin: 0;
+}
+
+.teacher-student-card {
+  margin-top: 18px;
+}
+
+.teacher-student-content {
+  padding: 0 18px 18px;
+  grid-template-columns: 1.1fr 0.9fr;
+}
+
+.student-mini-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .reveal {
   opacity: 0;
   transform: translateY(18px);
@@ -781,7 +904,8 @@ body::after {
   .dashboard-grid,
   .result-summary,
   .teacher-tools,
-  .analysis-grid {
+  .analysis-grid,
+  .teacher-student-content {
     grid-template-columns: 1fr;
   }
 

@@ -5,6 +5,11 @@ window.PORTAL_CONFIG = {
     email: "kutluozgur79@gmail.com",
     password: "Ogretmen123!"
   },
+  googleDriveUpload: {
+    webAppUrl: "",
+    folderName: "bilsemprj",
+    maxFileSizeMb: 20
+  },
   firebase: {
     teacherEmails: [
       "kutluozgur79@gmail.com"

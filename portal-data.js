@@ -11,19 +11,37 @@ export const QUIZ_QUESTIONS = [
   { prompt: "Quiz sonunda ne ogrenmis oluruz?", options: ["Dogru ve yanlislarimizi", "Sadece sansimizi", "Sadece oyunun rengini", "Hicbir seyi"], correctIndex: 0, explanation: "Sonuc ekrani, dogru ve yanlis cevaplari gosterir." }
 ];
 
-const STORAGE_KEYS = { users: "algoritmaPortaliUsers", session: "algoritmaPortaliSession", attempts: "algoritmaPortaliAttempts" };
+const STORAGE_KEYS = {
+  users: "algoritmaPortaliUsers",
+  session: "algoritmaPortaliSession",
+  attempts: "algoritmaPortaliAttempts",
+  projects: "algoritmaPortaliProjects",
+  messages: "algoritmaPortaliMessages"
+};
+
 const PORTAL_CONFIG = window.PORTAL_CONFIG || {};
 const ADMIN_CONFIG = PORTAL_CONFIG.admin || { name: "Ogretmen", email: "ogretmen@algoritma-portal.local", password: "Ogretmen123" };
 const FIREBASE_CONFIG = PORTAL_CONFIG.firebase || { teacherEmails: [], config: {} };
+const GOOGLE_DRIVE_UPLOAD_CONFIG = PORTAL_CONFIG.googleDriveUpload || { webAppUrl: "", folderName: "bilsemprj", maxFileSizeMb: 20 };
 
 export function normalizeEmail(value) { return String(value || "").trim().toLowerCase(); }
 export function escapeHtml(value) { return String(value || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"); }
 function createId(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 function readJson(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
 function writeJson(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
-export function normalizeDateValue(value) { if (!value) return new Date().toISOString(); if (typeof value === "string") return value; if (typeof value.toDate === "function") return value.toDate().toISOString(); if (typeof value.seconds === "number") return new Date(value.seconds * 1000).toISOString(); return new Date().toISOString(); }
+
+export function normalizeDateValue(value) {
+  if (!value) return new Date().toISOString();
+  if (typeof value === "string") return value;
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  if (typeof value.seconds === "number") return new Date(value.seconds * 1000).toISOString();
+  return new Date().toISOString();
+}
+
 export function formatDate(value) { return new Date(normalizeDateValue(value)).toLocaleString("tr-TR"); }
 export function sortAttemptsNewestFirst(items) { return [...items].sort((a, b) => new Date(normalizeDateValue(b.createdAt)) - new Date(normalizeDateValue(a.createdAt))); }
+export function sortProjectsNewestFirst(items) { return [...items].sort((a, b) => new Date(normalizeDateValue(b.uploadedAt)) - new Date(normalizeDateValue(a.uploadedAt))); }
+export function sortMessagesOldestFirst(items) { return [...items].sort((a, b) => new Date(normalizeDateValue(a.createdAt)) - new Date(normalizeDateValue(b.createdAt))); }
 
 export function isFirebaseModeConfigured() {
   return PORTAL_CONFIG.storageMode === "firebase" && Boolean(FIREBASE_CONFIG.config?.apiKey) && Boolean(FIREBASE_CONFIG.config?.projectId);
@@ -31,6 +49,18 @@ export function isFirebaseModeConfigured() {
 
 export function getTeacherEmails() {
   return (FIREBASE_CONFIG.teacherEmails || []).map((email) => normalizeEmail(email)).filter(Boolean);
+}
+
+export function getGoogleDriveUploadConfig() {
+  return {
+    folderName: GOOGLE_DRIVE_UPLOAD_CONFIG.folderName || "bilsemprj",
+    maxFileSizeMb: Number(GOOGLE_DRIVE_UPLOAD_CONFIG.maxFileSizeMb || 20),
+    webAppUrl: String(GOOGLE_DRIVE_UPLOAD_CONFIG.webAppUrl || "").trim()
+  };
+}
+
+export function isGoogleDriveUploadConfigured() {
+  return Boolean(getGoogleDriveUploadConfig().webAppUrl);
 }
 
 function isTeacherEmail(email) {
@@ -41,11 +71,47 @@ export function getModeLabel() {
   return isFirebaseModeConfigured() ? "Firebase" : "Yerel";
 }
 
+function buildProjectRecord(user, payload, overrides = {}) {
+  return {
+    userId: user.id,
+    studentName: user.name,
+    className: user.className,
+    email: user.email,
+    title: String(payload.title || "").trim(),
+    description: String(payload.description || "").trim(),
+    driveFileId: String(payload.driveFileId || ""),
+    driveFileUrl: String(payload.driveFileUrl || ""),
+    driveFileName: String(payload.driveFileName || ""),
+    mimeType: String(payload.mimeType || ""),
+    size: Number(payload.size || 0),
+    reviewText: String(payload.reviewText || ""),
+    reviewUpdatedAt: payload.reviewUpdatedAt || null,
+    reviewUpdatedBy: payload.reviewUpdatedBy || null,
+    reviewUpdatedByName: payload.reviewUpdatedByName || null,
+    ...overrides
+  };
+}
+
+function buildMessageRecord(studentId, text, sender, overrides = {}) {
+  return {
+    studentId,
+    senderId: sender.id,
+    senderName: sender.name,
+    senderRole: sender.role,
+    text: String(text || "").trim(),
+    ...overrides
+  };
+}
+
 function buildLocalDataLayer() {
   function getUsers() { return readJson(STORAGE_KEYS.users, []); }
   function saveUsers(users) { writeJson(STORAGE_KEYS.users, users); }
   function getAttempts() { return readJson(STORAGE_KEYS.attempts, []); }
   function saveAttempts(attempts) { writeJson(STORAGE_KEYS.attempts, attempts); }
+  function getProjects() { return readJson(STORAGE_KEYS.projects, []); }
+  function saveProjects(projects) { writeJson(STORAGE_KEYS.projects, projects); }
+  function getMessages() { return readJson(STORAGE_KEYS.messages, []); }
+  function saveMessages(messages) { writeJson(STORAGE_KEYS.messages, messages); }
   function getSession() { return readJson(STORAGE_KEYS.session, null); }
   function setSession(userId) { writeJson(STORAGE_KEYS.session, { userId }); }
   function clearSession() { localStorage.removeItem(STORAGE_KEYS.session); }
@@ -63,7 +129,15 @@ function buildLocalDataLayer() {
       return existing;
     }
 
-    const teacher = { id: createId("teacher"), role: "teacher", name: ADMIN_CONFIG.name || "Ogretmen", className: "Ogretmen", email: adminEmail, password: ADMIN_CONFIG.password, createdAt: new Date().toISOString() };
+    const teacher = {
+      id: createId("teacher"),
+      role: "teacher",
+      name: ADMIN_CONFIG.name || "Ogretmen",
+      className: "Ogretmen",
+      email: adminEmail,
+      password: ADMIN_CONFIG.password,
+      createdAt: new Date().toISOString()
+    };
     users.push(teacher);
     saveUsers(users);
     return teacher;
@@ -77,7 +151,15 @@ function buildLocalDataLayer() {
       const users = getUsers();
       const email = normalizeEmail(payload.email);
       if (users.some((user) => normalizeEmail(user.email) === email)) throw new Error("Bu e-posta zaten kayitli.");
-      const user = { id: createId("student"), role: "student", name: payload.name.trim(), className: payload.className.trim(), email, password: payload.password, createdAt: new Date().toISOString() };
+      const user = {
+        id: createId("student"),
+        role: "student",
+        name: payload.name.trim(),
+        className: payload.className.trim(),
+        email,
+        password: payload.password,
+        createdAt: new Date().toISOString()
+      };
       users.push(user);
       saveUsers(users);
       setSession(user.id);
@@ -93,11 +175,67 @@ function buildLocalDataLayer() {
     async getCurrentUser() { return getCurrentUser(); },
     async saveAttempt(user, result) {
       const attempts = getAttempts();
-      attempts.push({ id: createId("attempt"), userId: user.id, studentName: user.name, className: user.className, email: user.email, score: result.score, total: QUIZ_QUESTIONS.length, correctCount: result.correctCount, wrongCount: result.wrongCount, createdAt: new Date().toISOString(), answers: result.answers });
+      attempts.push({
+        id: createId("attempt"),
+        userId: user.id,
+        studentName: user.name,
+        className: user.className,
+        email: user.email,
+        score: result.score,
+        total: QUIZ_QUESTIONS.length,
+        correctCount: result.correctCount,
+        wrongCount: result.wrongCount,
+        createdAt: new Date().toISOString(),
+        answers: result.answers
+      });
       saveAttempts(attempts);
     },
     async listAttemptsForUser(userId) { return sortAttemptsNewestFirst(getAttempts().filter((attempt) => attempt.userId === userId)); },
-    async getTeacherSnapshot() { return { attempts: sortAttemptsNewestFirst(getAttempts()), students: getUsers().filter((user) => user.role === "student") }; },
+    async saveProjectRecord(user, payload) {
+      const projects = getProjects();
+      projects.push({
+        id: createId("project"),
+        ...buildProjectRecord(user, payload, { uploadedAt: new Date().toISOString() })
+      });
+      saveProjects(projects);
+    },
+    async listProjectsForUser(userId) { return sortProjectsNewestFirst(getProjects().filter((project) => project.userId === userId)); },
+    async saveProjectReview(projectId, reviewText, actor) {
+      const projects = getProjects();
+      const project = projects.find((item) => item.id === projectId);
+      if (!project) throw new Error("Proje kaydi bulunamadi.");
+      project.reviewText = String(reviewText || "").trim();
+      project.reviewUpdatedAt = new Date().toISOString();
+      project.reviewUpdatedBy = actor.id;
+      project.reviewUpdatedByName = actor.name;
+      saveProjects(projects);
+    },
+    async sendMessage({ studentId, text, sender }) {
+      const cleanText = String(text || "").trim();
+      if (!cleanText) throw new Error("Mesaj bos olamaz.");
+      const messages = getMessages();
+      messages.push({
+        id: createId("message"),
+        ...buildMessageRecord(studentId, cleanText, sender, { createdAt: new Date().toISOString() })
+      });
+      saveMessages(messages);
+    },
+    async listMessagesForUser(userId) { return sortMessagesOldestFirst(getMessages().filter((message) => message.studentId === userId)); },
+    async getStudentWorkspace(userId) {
+      return {
+        projects: await this.listProjectsForUser(userId),
+        messages: await this.listMessagesForUser(userId)
+      };
+    },
+    subscribeStudentWorkspace(userId, callback) { this.getStudentWorkspace(userId).then(callback); return () => {}; },
+    async getTeacherSnapshot() {
+      return {
+        attempts: sortAttemptsNewestFirst(getAttempts()),
+        students: getUsers().filter((user) => user.role === "student"),
+        projects: sortProjectsNewestFirst(getProjects()),
+        messages: sortMessagesOldestFirst(getMessages())
+      };
+    },
     subscribeTeacherSnapshot(callback) { this.getTeacherSnapshot().then(callback); return () => {}; }
   };
 }
@@ -110,7 +248,20 @@ async function buildFirebaseDataLayer() {
   ]);
   const { initializeApp } = appModule;
   const { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } = authModule;
-  const { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, query, where, onSnapshot, serverTimestamp } = firestoreModule;
+  const {
+    getFirestore,
+    doc,
+    setDoc,
+    getDoc,
+    updateDoc,
+    collection,
+    addDoc,
+    getDocs,
+    query,
+    where,
+    onSnapshot,
+    serverTimestamp
+  } = firestoreModule;
 
   const app = initializeApp(FIREBASE_CONFIG.config);
   const auth = getAuth(app);
@@ -121,7 +272,14 @@ async function buildFirebaseDataLayer() {
     const ref = doc(db, "users", authUser.uid);
     const snap = await getDoc(ref);
     const current = snap.exists() ? snap.data() : {};
-    const profile = { uid: authUser.uid, email: normalizeEmail(authUser.email), name: extra.name || current.name || authUser.displayName || authUser.email, className: extra.className || current.className || (role === "teacher" ? "Ogretmen" : ""), role, updatedAt: serverTimestamp() };
+    const profile = {
+      uid: authUser.uid,
+      email: normalizeEmail(authUser.email),
+      name: extra.name || current.name || authUser.displayName || authUser.email,
+      className: extra.className || current.className || (role === "teacher" ? "Ogretmen" : ""),
+      role,
+      updatedAt: serverTimestamp()
+    };
     if (!snap.exists()) profile.createdAt = serverTimestamp();
     await setDoc(ref, profile, { merge: true });
     return { id: authUser.uid, email: profile.email, name: profile.name, className: profile.className, role };
@@ -134,8 +292,37 @@ async function buildFirebaseDataLayer() {
     return authUser ? upsertProfile(authUser) : null;
   }
 
-  function mapAttempt(docSnap) { const data = docSnap.data(); return { id: docSnap.id, ...data, createdAt: normalizeDateValue(data.createdAt) }; }
-  function mapUser(docSnap) { const data = docSnap.data(); return { id: docSnap.id, ...data, createdAt: normalizeDateValue(data.createdAt) }; }
+  function mapAttempt(docSnap) {
+    const data = docSnap.data();
+    return { id: docSnap.id, ...data, createdAt: normalizeDateValue(data.createdAt) };
+  }
+
+  function mapUser(docSnap) {
+    const data = docSnap.data();
+    return { id: docSnap.id, ...data, createdAt: normalizeDateValue(data.createdAt) };
+  }
+
+  function mapProject(docSnap) {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      ...data,
+      uploadedAt: normalizeDateValue(data.uploadedAt),
+      reviewUpdatedAt: data.reviewUpdatedAt ? normalizeDateValue(data.reviewUpdatedAt) : null
+    };
+  }
+
+  function mapMessage(docSnap) {
+    const data = docSnap.data();
+    return { id: docSnap.id, ...data, createdAt: normalizeDateValue(data.createdAt) };
+  }
+
+  function subscribeWorkspace(queryRef, mapFn, assignItems, publish, onError) {
+    return onSnapshot(queryRef, (snapshot) => {
+      assignItems(snapshot.docs.map(mapFn));
+      publish();
+    }, onError);
+  }
 
   return {
     mode: "firebase",
@@ -153,21 +340,128 @@ async function buildFirebaseDataLayer() {
     async logoutUser() { await signOut(auth); },
     async getCurrentUser() { return auth.currentUser ? upsertProfile(auth.currentUser) : null; },
     async saveAttempt(user, result) {
-      await addDoc(collection(db, "attempts"), { userId: user.id, studentName: user.name, className: user.className, email: user.email, score: result.score, total: QUIZ_QUESTIONS.length, correctCount: result.correctCount, wrongCount: result.wrongCount, answers: result.answers, createdAt: serverTimestamp() });
+      await addDoc(collection(db, "attempts"), {
+        userId: user.id,
+        studentName: user.name,
+        className: user.className,
+        email: user.email,
+        score: result.score,
+        total: QUIZ_QUESTIONS.length,
+        correctCount: result.correctCount,
+        wrongCount: result.wrongCount,
+        answers: result.answers,
+        createdAt: serverTimestamp()
+      });
     },
     async listAttemptsForUser(userId) {
       const snapshot = await getDocs(query(collection(db, "attempts"), where("userId", "==", userId)));
       return sortAttemptsNewestFirst(snapshot.docs.map(mapAttempt));
     },
+    async saveProjectRecord(user, payload) {
+      await addDoc(collection(db, "projects"), {
+        ...buildProjectRecord(user, payload, {
+          uploadedAt: serverTimestamp(),
+          reviewUpdatedAt: null,
+          reviewUpdatedBy: null,
+          reviewUpdatedByName: null
+        })
+      });
+    },
+    async listProjectsForUser(userId) {
+      const snapshot = await getDocs(query(collection(db, "projects"), where("userId", "==", userId)));
+      return sortProjectsNewestFirst(snapshot.docs.map(mapProject));
+    },
+    async saveProjectReview(projectId, reviewText, actor) {
+      await updateDoc(doc(db, "projects", projectId), {
+        reviewText: String(reviewText || "").trim(),
+        reviewUpdatedAt: serverTimestamp(),
+        reviewUpdatedBy: actor.id,
+        reviewUpdatedByName: actor.name
+      });
+    },
+    async sendMessage({ studentId, text, sender }) {
+      const cleanText = String(text || "").trim();
+      if (!cleanText) throw new Error("Mesaj bos olamaz.");
+      await addDoc(collection(db, "messages"), {
+        ...buildMessageRecord(studentId, cleanText, sender, { createdAt: serverTimestamp() })
+      });
+    },
+    async listMessagesForUser(userId) {
+      const snapshot = await getDocs(query(collection(db, "messages"), where("studentId", "==", userId)));
+      return sortMessagesOldestFirst(snapshot.docs.map(mapMessage));
+    },
+    async getStudentWorkspace(userId) {
+      const [projectsSnapshot, messagesSnapshot] = await Promise.all([
+        getDocs(query(collection(db, "projects"), where("userId", "==", userId))),
+        getDocs(query(collection(db, "messages"), where("studentId", "==", userId)))
+      ]);
+      return {
+        projects: sortProjectsNewestFirst(projectsSnapshot.docs.map(mapProject)),
+        messages: sortMessagesOldestFirst(messagesSnapshot.docs.map(mapMessage))
+      };
+    },
+    subscribeStudentWorkspace(userId, callback, onError) {
+      const cache = { projects: [], messages: [] };
+      const publish = () => callback({
+        projects: sortProjectsNewestFirst(cache.projects),
+        messages: sortMessagesOldestFirst(cache.messages)
+      });
+
+      const unsubscribeProjects = subscribeWorkspace(
+        query(collection(db, "projects"), where("userId", "==", userId)),
+        mapProject,
+        (items) => { cache.projects = items; },
+        publish,
+        onError
+      );
+
+      const unsubscribeMessages = subscribeWorkspace(
+        query(collection(db, "messages"), where("studentId", "==", userId)),
+        mapMessage,
+        (items) => { cache.messages = items; },
+        publish,
+        onError
+      );
+
+      return () => {
+        unsubscribeProjects();
+        unsubscribeMessages();
+      };
+    },
     async getTeacherSnapshot() {
-      const [attemptsSnapshot, usersSnapshot] = await Promise.all([getDocs(collection(db, "attempts")), getDocs(collection(db, "users"))]);
-      return { attempts: sortAttemptsNewestFirst(attemptsSnapshot.docs.map(mapAttempt)), students: usersSnapshot.docs.map(mapUser).filter((user) => user.role === "student") };
+      const [attemptsSnapshot, usersSnapshot, projectsSnapshot, messagesSnapshot] = await Promise.all([
+        getDocs(collection(db, "attempts")),
+        getDocs(collection(db, "users")),
+        getDocs(collection(db, "projects")),
+        getDocs(collection(db, "messages"))
+      ]);
+      return {
+        attempts: sortAttemptsNewestFirst(attemptsSnapshot.docs.map(mapAttempt)),
+        students: usersSnapshot.docs.map(mapUser).filter((user) => user.role === "student"),
+        projects: sortProjectsNewestFirst(projectsSnapshot.docs.map(mapProject)),
+        messages: sortMessagesOldestFirst(messagesSnapshot.docs.map(mapMessage))
+      };
     },
     subscribeTeacherSnapshot(callback, onError) {
-      return onSnapshot(collection(db, "attempts"), async (attemptsSnapshot) => {
-        const usersSnapshot = await getDocs(collection(db, "users"));
-        callback({ attempts: sortAttemptsNewestFirst(attemptsSnapshot.docs.map(mapAttempt)), students: usersSnapshot.docs.map(mapUser).filter((user) => user.role === "student") });
-      }, onError);
+      const cache = { attempts: [], students: [], projects: [], messages: [] };
+      const publish = () => callback({
+        attempts: sortAttemptsNewestFirst(cache.attempts),
+        students: cache.students.filter((user) => user.role === "student"),
+        projects: sortProjectsNewestFirst(cache.projects),
+        messages: sortMessagesOldestFirst(cache.messages)
+      });
+
+      const unsubscribeAttempts = subscribeWorkspace(collection(db, "attempts"), mapAttempt, (items) => { cache.attempts = items; }, publish, onError);
+      const unsubscribeUsers = subscribeWorkspace(collection(db, "users"), mapUser, (items) => { cache.students = items; }, publish, onError);
+      const unsubscribeProjects = subscribeWorkspace(collection(db, "projects"), mapProject, (items) => { cache.projects = items; }, publish, onError);
+      const unsubscribeMessages = subscribeWorkspace(collection(db, "messages"), mapMessage, (items) => { cache.messages = items; }, publish, onError);
+
+      return () => {
+        unsubscribeAttempts();
+        unsubscribeUsers();
+        unsubscribeProjects();
+        unsubscribeMessages();
+      };
     }
   };
 }

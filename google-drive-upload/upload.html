@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BILSEM Proje Yukleme</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #fffaf0;
+      --surface: #ffffff;
+      --ink: #17324d;
+      --soft: #5b7188;
+      --teal: #1f9aa5;
+      --border: rgba(23, 50, 77, 0.14);
+      --radius: 18px;
+      --shadow: 0 18px 45px rgba(23, 50, 77, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px;
+      font-family: Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(255, 209, 102, 0.45), transparent 28%),
+        linear-gradient(180deg, #fffefb 0%, var(--bg) 100%);
+    }
+
+    .shell {
+      width: min(720px, 100%);
+      margin: 0 auto;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    h1,
+    h2 {
+      margin: 0 0 10px;
+    }
+
+    p {
+      margin: 0;
+      line-height: 1.6;
+      color: var(--soft);
+    }
+
+    form,
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .meta {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      border-radius: var(--radius);
+      background: rgba(31, 154, 165, 0.08);
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      font-weight: 700;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-weight: 700;
+    }
+
+    input,
+    textarea,
+    button {
+      font: inherit;
+    }
+
+    input[type="text"],
+    input[type="file"],
+    textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    button {
+      min-height: 48px;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #1f9aa5, #16757d);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+
+    .status {
+      min-height: 24px;
+      font-weight: 700;
+      color: var(--teal);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="stack">
+      <div>
+        <h1>Proje Dosyasi Yukleme</h1>
+        <p>Bu pencere dosyayi ogretmenin Google Drive hesabindaki <strong><?= data.rootFolderName ?></strong> klasorune yukler.</p>
+      </div>
+
+      <div class="meta">
+        <h2>Ogrenci Bilgisi</h2>
+        <div class="pill-row">
+          <span class="pill"><?= data.studentName ?></span>
+          <span class="pill"><?= data.className ?></span>
+          <span class="pill"><?= data.email ?></span>
+        </div>
+      </div>
+
+      <form id="upload-form">
+        <input type="hidden" name="requestId" value="<?= data.requestId ?>">
+        <input type="hidden" name="portalOrigin" value="<?= data.portalOrigin ?>">
+        <input type="hidden" name="studentId" value="<?= data.studentId ?>">
+        <input type="hidden" name="studentName" value="<?= data.studentName ?>">
+        <input type="hidden" name="className" value="<?= data.className ?>">
+        <input type="hidden" name="email" value="<?= data.email ?>">
+
+        <label>
+          <span>Proje basligi</span>
+          <input type="text" name="projectTitle" placeholder="Ornek: Geri Donusum Robotu" required>
+        </label>
+
+        <label>
+          <span>Kisa aciklama</span>
+          <textarea name="description" placeholder="Projenin kisa amacini yazin"></textarea>
+        </label>
+
+        <label>
+          <span>Dosya sec</span>
+          <input type="file" name="projectFile" required>
+        </label>
+
+        <p>Onerilen en yuksek boyut: <?= data.maxFileSizeMb ?> MB</p>
+        <button type="submit" id="submit-button">Drive'a yukle</button>
+        <p class="status" id="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const bootstrap = <?= JSON.stringify(data) ?>;
+    const form = document.getElementById("upload-form");
+    const statusNode = document.getElementById("status");
+    const submitButton = document.getElementById("submit-button");
+
+    function postToPortal(type, payload) {
+      if (!window.opener) {
+        return;
+      }
+      window.opener.postMessage({
+        type,
+        requestId: bootstrap.requestId,
+        payload,
+        message: payload && payload.message ? payload.message : ""
+      }, bootstrap.portalOrigin || "*");
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const fileInput = form.projectFile;
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        statusNode.textContent = "Lutfen dosya secin.";
+        return;
+      }
+
+      submitButton.disabled = true;
+      statusNode.textContent = "Dosya Google Drive'a yukleniyor...";
+
+      const payload = {
+        requestId: form.requestId.value,
+        portalOrigin: form.portalOrigin.value,
+        studentId: form.studentId.value,
+        studentName: form.studentName.value,
+        className: form.className.value,
+        email: form.email.value,
+        projectTitle: form.projectTitle.value.trim(),
+        description: form.description.value.trim(),
+        projectFile: file
+      };
+
+      google.script.run
+        .withSuccessHandler((result) => {
+          statusNode.textContent = "Yukleme tamamlandi. Pencere kapatiliyor...";
+          postToPortal("google-drive-upload-complete", result);
+          setTimeout(() => window.close(), 600);
+        })
+        .withFailureHandler((error) => {
+          const message = (error && error.message) || "Yukleme basarisiz oldu.";
+          statusNode.textContent = message;
+          submitButton.disabled = false;
+          postToPortal("google-drive-upload-error", { message });
+        })
+        .uploadProject(payload);
+    });
+  </script>
+</body>
+</html>

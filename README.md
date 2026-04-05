@@ -9,8 +9,8 @@ Bu proje, 5. sinif ogrencileri icin hazirlanmis algoritma portalidir.
 - `neden-onemli.html`: Neden onemli oldugu
 - `gunluk-hayat.html`: Gunluk hayat ornekleri
 - `giris.html`: Ogrenci kaydi ve giris
-- `mini-lab.html`: 10 soruluk quiz
-- `ogretmen-paneli.html`: Sonuc paneli
+- `mini-lab.html`: Quiz, proje yukleme ve ogrenci mesajlasma alani
+- `ogretmen-paneli.html`: Quiz sonuclari, proje degerlendirme ve mesajlasma paneli
 
 ## Veri modlari
 
@@ -19,17 +19,35 @@ Bu proje, 5. sinif ogrencileri icin hazirlanmis algoritma portalidir.
 
 Aktif mod `portal-config.js` dosyasindan belirlenir.
 
-## Firebase dosyalari
+## Yeni ozellikler
 
-- `portal-config.js`: Web uygulama ayarlari ve ogretmen e-postalari
+- Ogrenci kaydi ve girisi
+- Quiz sonuclarinin kaydi
+- Ogrencinin proje dosyasini Google Drive uzerindeki `bilsemprj` klasorune yukleme akisi
+- Ogretmenin proje degerlendirmesi yazabilmesi
+- Ogrenci ve ogretmen arasinda iki yonlu mesajlasma
+
+## Dosya yapisi
+
+- `portal-config.js`: Web uygulama ayarlari, ogretmen e-postalari ve Google Drive yukleme koprusu
 - `portal-data.js`: Yerel ve Firebase veri katmani
 - `portal.js`: Arayuz mantigi
 - `firebase.json`: Hosting ve Firestore yapilandirmasi
 - `firestore.rules`: Guvenlik kurallari
 - `firestore.indexes.json`: Firestore index yapisi
+- `google-drive-upload/`: Google Apps Script yukleme penceresi ornegi
+
+## Google Drive entegrasyonu
+
+Portal, dosyayi dogrudan tarayicidan sizin Google Drive hesabinizdaki klasore yazamaz. Bu nedenle repo icinde bir Google Apps Script koprusu bulunur.
+
+Kurulum ozeti:
+
+1. `google-drive-upload/Code.gs` ve `google-drive-upload/upload.html` dosyalarini yeni bir Apps Script projesine ekleyin.
+2. Scripti web app olarak yayinlayin. Calisma hesabi sizin Google hesabiniz olsun.
+3. Web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina yapistirin.
+4. Script ilk yuklemede Drive icinde `bilsemprj` klasorunu olusturur ve ogrenci bazli alt klasorler acar.
 
 ## Onemli not
 
-Gercek cok kullanicili sistemin canliya alinmasi icin bir Firebase projesi gerekir.
-Bu ortamda Firebase girisi etkileşimli Google oturumu istedigi icin son aktivasyon adimi,
-kisa bir kullanici onayi gerektirebilir.
+Gercek cok kullanicili sistemin canliya alinmasi icin bir Firebase projesi gerekir. Google Drive yukleme ozelligi icin de ayrica Apps Script web app koprusunun devreye alinmasi gerekir.

@@ -13,6 +13,8 @@
       "FIREBASE_SETUP.md",
       "package.json",
       "package-lock.json",
+      "google-drive-upload",
+      "google-drive-upload/**",
       "firestore.rules",
       "firestore.indexes.json",
       "firebase-debug.log",

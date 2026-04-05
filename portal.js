@@ -3,9 +3,11 @@ import {
   createDataLayer,
   escapeHtml,
   formatDate,
+  getGoogleDriveUploadConfig,
   getModeLabel,
   getTeacherEmails,
-  isFirebaseModeConfigured
+  isFirebaseModeConfigured,
+  isGoogleDriveUploadConfigured
 } from "./portal-data.js";
 
 const PORTAL_CONFIG = window.PORTAL_CONFIG || {};
@@ -20,7 +22,11 @@ const state = {
   currentUser: null,
   teacherSnapshotUnsubscribe: null,
   teacherSnapshot: null,
+  studentWorkspaceUnsubscribe: null,
+  studentWorkspace: { projects: [], messages: [] },
   teacherControlsBound: false,
+  driveUploadBridgeBound: false,
+  driveUploadBridge: null,
   teacherFilters: {
     search: "",
     className: "all",
@@ -37,6 +43,18 @@ function friendlyErrorMessage(error) {
 
   if (text.includes("auth/operation-not-allowed")) {
     return "Email/Password girisi Firebase Authentication icinde etkinlestirilmemis.";
+  }
+
+  if (text.includes("UPLOAD_NOT_CONFIGURED")) {
+    return "Google Drive yukleme koprusu henuz ayarlanmis degil.";
+  }
+
+  if (text.includes("UPLOAD_POPUP_BLOCKED")) {
+    return "Tarayici yukleme penceresini engelledi. Pop-up izni verip tekrar deneyin.";
+  }
+
+  if (text.includes("UPLOAD_CANCELLED")) {
+    return "Yukleme penceresi kapatildi.";
   }
 
   return text || "Bilinmeyen hata";
@@ -78,17 +96,28 @@ function renderFirebaseSetupWarning() {
     return;
   }
 
-  if (isFirebaseModeConfigured()) {
-    host.innerHTML = "";
+  if (!isFirebaseModeConfigured()) {
+    host.innerHTML = `
+      <div class="gate-card">
+        <h2>Su an yerel mod aktif</h2>
+        <p>Gercek cok kullanicili kullanim icin <code>portal-config.js</code> dosyasina Firebase ayarlari girilip <code>storageMode</code> degeri <code>firebase</code> yapilmalidir.</p>
+      </div>
+    `;
     return;
   }
 
-  host.innerHTML = `
-    <div class="gate-card">
-      <h2>Su an yerel mod aktif</h2>
-      <p>Gercek cok kullanicili kullanim icin <code>portal-config.js</code> dosyasina Firebase ayarlari girilip <code>storageMode</code> degeri <code>firebase</code> yapilmalidir.</p>
-    </div>
-  `;
+  if (!isGoogleDriveUploadConfigured() && document.querySelector("[data-quiz-page]")) {
+    const uploadConfig = getGoogleDriveUploadConfig();
+    host.innerHTML = `
+      <div class="gate-card">
+        <h2>Google Drive yukleme beklemede</h2>
+        <p>Quiz ve mesajlasma aktif. Proje dosyalarinin <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune gidebilmesi icin <code>portal-config.js</code> icindeki <code>googleDriveUpload.webAppUrl</code> alanina Apps Script web app adresini ekleyin.</p>
+      </div>
+    `;
+    return;
+  }
+
+  host.innerHTML = "";
 }
 
 function renderTeacherLoginNote() {
@@ -102,7 +131,7 @@ function renderTeacherLoginNote() {
     host.innerHTML = teacherEmails.length
       ? `
         <p><strong>Ogretmen e-postalari:</strong> ${teacherEmails.map(escapeHtml).join(", ")}</p>
-        <p>Bu e-postalardan biri ile giris yapan kullanici ogretmen panelini acabilir.</p>
+        <p>Bu hesaplarla giren kullanicilar quiz sonuclarini, proje dosyalarini ve mesajlasma ekranini yonetebilir.</p>
       `
       : `<p>Firebase modunda ogretmen e-postalari <code>portal-config.js</code> icinde ayarlanir.</p>`;
     return;
@@ -111,7 +140,7 @@ function renderTeacherLoginNote() {
   host.innerHTML = `
     <p><strong>E-posta:</strong> ${escapeHtml(ADMIN_CONFIG.email)}</p>
     <p><strong>Sifre:</strong> ${escapeHtml(ADMIN_CONFIG.password)}</p>
-    <p>Bu hesap ile <a href="ogretmen-paneli.html">ogretmen paneline</a> girip tum quiz sonuclarini gorebilirsiniz.</p>
+    <p>Bu hesap ile <a href="ogretmen-paneli.html">ogretmen paneline</a> girip quiz, proje ve mesajlasma alanlarini gorebilirsiniz.</p>
   `;
 }
 
@@ -181,6 +210,24 @@ function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function renderRichText(value) {
+  return escapeHtml(value).replaceAll("\n", "<br>");
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!size) {
+    return "-";
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${Math.round(size / 1024)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function compareAttempts(left, right, sort) {
   if (sort === "date_asc") {
     return new Date(left.createdAt) - new Date(right.createdAt);
@@ -236,7 +283,8 @@ function renderTeacherFilterSummary(filteredAttempts, snapshot) {
 
   const total = snapshot?.attempts?.length || 0;
   const filteredStudents = new Set(filteredAttempts.map((attempt) => attempt.userId)).size;
-  host.textContent = `${filteredAttempts.length} quiz sonucu gosteriliyor • ${filteredStudents} ogrenci • toplam kayit ${total}`;
+  const projectCount = (snapshot?.projects || []).length;
+  host.textContent = `${filteredAttempts.length} quiz sonucu - ${filteredStudents} ogrenci - ${projectCount} proje kaydi - toplam quiz kaydi ${total}`;
 }
 
 function toCsvCell(value) {
@@ -388,6 +436,185 @@ function renderTeacherInsights(filteredAttempts) {
   `;
 }
 
+function getFilteredTeacherStudents(snapshot) {
+  const students = [...(snapshot?.students || [])];
+  const search = normalizeText(state.teacherFilters.search);
+  const className = state.teacherFilters.className;
+
+  return students.filter((student) => {
+    const matchesClass = className === "all" || normalizeText(student.className) === normalizeText(className);
+    if (!matchesClass) {
+      return false;
+    }
+
+    if (!search) {
+      return true;
+    }
+
+    const haystack = [
+      student.name,
+      student.className,
+      student.email
+    ].map(normalizeText).join(" ");
+
+    return haystack.includes(search);
+  });
+}
+
+function buildTeacherStudentWorkspace(snapshot) {
+  const filteredStudents = getFilteredTeacherStudents(snapshot);
+  const projectMap = new Map();
+  const messageMap = new Map();
+
+  (snapshot?.projects || []).forEach((project) => {
+    const list = projectMap.get(project.userId) || [];
+    list.push(project);
+    projectMap.set(project.userId, list);
+  });
+
+  (snapshot?.messages || []).forEach((message) => {
+    const list = messageMap.get(message.studentId) || [];
+    list.push(message);
+    messageMap.set(message.studentId, list);
+  });
+
+  return filteredStudents
+    .map((student) => {
+      const projects = [...(projectMap.get(student.id) || [])].sort((left, right) => new Date(right.uploadedAt) - new Date(left.uploadedAt));
+      const messages = [...(messageMap.get(student.id) || [])].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
+      const latestProjectAt = projects[0]?.uploadedAt || null;
+      const latestMessageAt = messages[messages.length - 1]?.createdAt || null;
+      const latestActivityAt = latestProjectAt && latestMessageAt
+        ? (new Date(latestProjectAt) > new Date(latestMessageAt) ? latestProjectAt : latestMessageAt)
+        : latestProjectAt || latestMessageAt || student.createdAt;
+
+      return {
+        student,
+        projects,
+        messages,
+        latestActivityAt
+      };
+    })
+    .sort((left, right) => {
+      if (state.teacherFilters.sort === "name_asc") {
+        return normalizeText(left.student.name).localeCompare(normalizeText(right.student.name), "tr");
+      }
+      return new Date(right.latestActivityAt) - new Date(left.latestActivityAt);
+    });
+}
+
+function renderMessageThread(messages, viewerRole) {
+  if (!messages.length) {
+    return `<div class="empty-state">Henuz mesaj yok.</div>`;
+  }
+
+  return `
+    <div class="chat-thread">
+      ${messages.map((message) => {
+        const isOwn = message.senderRole === viewerRole;
+        return `
+          <article class="chat-bubble ${isOwn ? "chat-bubble-self" : "chat-bubble-other"}">
+            <div class="chat-meta">
+              <strong>${escapeHtml(message.senderName)}</strong>
+              <span>${message.senderRole === "teacher" ? "Ogretmen" : "Ogrenci"} - ${formatDate(message.createdAt)}</span>
+            </div>
+            <p>${renderRichText(message.text)}</p>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderProjectCards(projects, viewerRole) {
+  if (!projects.length) {
+    return `<div class="empty-state">Henuz proje dosyasi yuklenmedi.</div>`;
+  }
+
+  return `
+    <div class="project-list">
+      ${projects.map((project) => `
+        <article class="project-card">
+          <div class="project-head">
+            <div>
+              <h3>${escapeHtml(project.title || project.driveFileName || "Proje dosyasi")}</h3>
+              <p>${formatDate(project.uploadedAt)} - ${escapeHtml(project.driveFileName || "Dosya adi yok")} - ${escapeHtml(formatFileSize(project.size))}</p>
+            </div>
+            ${viewerRole === "teacher" && project.driveFileUrl
+              ? `<a class="button button-secondary" href="${escapeHtml(project.driveFileUrl)}" target="_blank" rel="noopener noreferrer">Drive'da ac</a>`
+              : `<span class="status-pill">Drive kaydi olustu</span>`}
+          </div>
+          ${project.description ? `<p>${renderRichText(project.description)}</p>` : `<p class="muted-text">Aciklama eklenmemis.</p>`}
+          <div class="review-block">
+            <h4>Ogretmen degerlendirmesi</h4>
+            ${viewerRole === "teacher"
+              ? `
+                <textarea class="review-textarea" data-review-input="${escapeHtml(project.id)}" placeholder="Bu proje icin degerlendirme yazin...">${escapeHtml(project.reviewText || "")}</textarea>
+                <div class="inline-actions">
+                  <button class="button button-primary" type="button" data-save-review-button="${escapeHtml(project.id)}">Degerlendirmeyi kaydet</button>
+                  <span class="inline-note" data-review-status="${escapeHtml(project.id)}">${project.reviewUpdatedAt ? `Son guncelleme: ${formatDate(project.reviewUpdatedAt)}` : ""}</span>
+                </div>
+              `
+              : project.reviewText
+                ? `
+                  <div class="review-display">${renderRichText(project.reviewText)}</div>
+                  <p class="muted-text">${project.reviewUpdatedAt ? `Son guncelleme: ${formatDate(project.reviewUpdatedAt)}` : ""}</p>
+                `
+                : `<div class="empty-state">Ogretmen henuz bir degerlendirme yazmadi.</div>`}
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderTeacherProjectWorkspace(snapshot) {
+  const host = document.getElementById("teacher-project-workspace");
+  if (!host) {
+    return;
+  }
+
+  const workspaces = buildTeacherStudentWorkspace(snapshot);
+
+  if (!workspaces.length) {
+    host.innerHTML = `<div class="empty-state">Secili filtrelerde ogrenci bulunamadi.</div>`;
+    return;
+  }
+
+  host.innerHTML = workspaces.map(({ student, projects, messages }) => `
+    <details class="attempt-card teacher-student-card">
+      <summary>
+        <span>${escapeHtml(student.name)} - ${escapeHtml(student.className || "-")}</span>
+        <strong>${projects.length} proje</strong>
+        <span>${messages.length} mesaj</span>
+      </summary>
+      <div class="teacher-student-content">
+        <section class="teacher-student-column">
+          <div class="student-mini-meta">
+            <span class="status-pill">${escapeHtml(student.email || "-")}</span>
+            <span class="status-pill">${projects.length ? `Son yukleme: ${formatDate(projects[0].uploadedAt)}` : "Yukleme yok"}</span>
+          </div>
+          ${renderProjectCards(projects, "teacher")}
+        </section>
+        <section class="teacher-student-column">
+          <h3>Mesajlasma</h3>
+          ${renderMessageThread(messages, "teacher")}
+          <form class="message-form" data-teacher-message-form="${escapeHtml(student.id)}">
+            <label class="field">
+              <span>${escapeHtml(student.name)} icin mesaj</span>
+              <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
+            </label>
+            <div class="inline-actions">
+              <button class="button button-primary" type="submit">Mesaj gonder</button>
+            </div>
+            <p class="auth-message" data-message-status aria-live="polite"></p>
+          </form>
+        </section>
+      </div>
+    </details>
+  `).join("");
+}
+
 function bindTeacherControls(snapshot) {
   const searchInput = document.getElementById("teacher-search");
   const classFilter = document.getElementById("teacher-class-filter");
@@ -482,6 +709,314 @@ function bindTeacherControls(snapshot) {
   sortSelect.value = state.teacherFilters.sort;
 }
 
+function bindDriveUploadBridge() {
+  if (state.driveUploadBridgeBound) {
+    return;
+  }
+
+  state.driveUploadBridgeBound = true;
+  window.addEventListener("message", (event) => {
+    const bridge = state.driveUploadBridge;
+    if (!bridge || event.source !== bridge.popup) {
+      return;
+    }
+
+    const data = event.data || {};
+    if (data.requestId !== bridge.requestId) {
+      return;
+    }
+
+    cleanupDriveUploadBridge();
+
+    if (data.type === "google-drive-upload-complete") {
+      bridge.resolve(data.payload || {});
+      return;
+    }
+
+    bridge.reject(new Error(data.message || "UPLOAD_FAILED"));
+  });
+}
+
+function cleanupDriveUploadBridge() {
+  if (!state.driveUploadBridge) {
+    return;
+  }
+
+  clearInterval(state.driveUploadBridge.pollTimer);
+  clearTimeout(state.driveUploadBridge.timeoutTimer);
+  state.driveUploadBridge = null;
+}
+
+function openDriveUploadPopup() {
+  if (!isGoogleDriveUploadConfigured()) {
+    return Promise.reject(new Error("UPLOAD_NOT_CONFIGURED"));
+  }
+
+  if (!state.currentUser || state.currentUser.role !== "student") {
+    return Promise.reject(new Error("Sadece ogrenci hesabi proje yukleyebilir."));
+  }
+
+  bindDriveUploadBridge();
+
+  const uploadConfig = getGoogleDriveUploadConfig();
+  const requestId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const portalOrigin = window.location.origin && window.location.origin !== "null" ? window.location.origin : "";
+  const params = new URLSearchParams({
+    requestId,
+    portalOrigin,
+    studentId: state.currentUser.id,
+    studentName: state.currentUser.name,
+    className: state.currentUser.className,
+    email: state.currentUser.email
+  });
+  const popupUrl = `${uploadConfig.webAppUrl}${uploadConfig.webAppUrl.includes("?") ? "&" : "?"}${params.toString()}`;
+  const popup = window.open(popupUrl, "driveUploadWindow", "width=720,height=820,resizable=yes,scrollbars=yes");
+
+  if (!popup) {
+    return Promise.reject(new Error("UPLOAD_POPUP_BLOCKED"));
+  }
+
+  popup.focus();
+
+  return new Promise((resolve, reject) => {
+    const pollTimer = window.setInterval(() => {
+      if (popup.closed) {
+        cleanupDriveUploadBridge();
+        reject(new Error("UPLOAD_CANCELLED"));
+      }
+    }, 600);
+
+    const timeoutTimer = window.setTimeout(() => {
+      cleanupDriveUploadBridge();
+      reject(new Error("Yukleme zaman asimina ugradi."));
+    }, 5 * 60 * 1000);
+
+    state.driveUploadBridge = { requestId, popup, resolve, reject, pollTimer, timeoutTimer };
+  });
+}
+
+function bindStudentWorkspaceActions() {
+  const uploadButton = document.getElementById("student-drive-upload-button");
+  const uploadMessage = document.getElementById("student-project-message");
+  const messageForm = document.getElementById("student-message-form");
+  const messageStatus = document.getElementById("student-message-status");
+
+  if (uploadButton && !uploadButton.dataset.bound) {
+    uploadButton.dataset.bound = "true";
+    uploadButton.addEventListener("click", async () => {
+      uploadButton.disabled = true;
+      if (uploadMessage) {
+        uploadMessage.textContent = "Yukleme penceresi aciliyor...";
+      }
+
+      try {
+        const projectPayload = await openDriveUploadPopup();
+        if (uploadMessage) {
+          uploadMessage.textContent = "Dosya Drive'a kaydedildi. Portal kaydi olusturuluyor...";
+        }
+        await state.dataLayer.saveProjectRecord(state.currentUser, projectPayload);
+        if (uploadMessage) {
+          uploadMessage.textContent = "Proje dosyaniz basariyla kaydedildi.";
+        }
+      } catch (error) {
+        if (uploadMessage) {
+          uploadMessage.textContent = friendlyErrorMessage(error);
+        }
+      } finally {
+        uploadButton.disabled = false;
+      }
+    });
+  }
+
+  if (messageForm && !messageForm.dataset.bound) {
+    messageForm.dataset.bound = "true";
+    messageForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (messageStatus) {
+        messageStatus.textContent = "";
+      }
+      const formData = new FormData(messageForm);
+      const text = String(formData.get("text") || "").trim();
+      if (!text) {
+        if (messageStatus) {
+          messageStatus.textContent = "Mesaj bos olamaz.";
+        }
+        return;
+      }
+
+      try {
+        await state.dataLayer.sendMessage({
+          studentId: state.currentUser.id,
+          text,
+          sender: state.currentUser
+        });
+        messageForm.reset();
+        if (messageStatus) {
+          messageStatus.textContent = "Mesaj gonderildi.";
+        }
+      } catch (error) {
+        if (messageStatus) {
+          messageStatus.textContent = friendlyErrorMessage(error);
+        }
+      }
+    });
+  }
+}
+
+function bindTeacherWorkspaceActions() {
+  const host = document.getElementById("teacher-project-workspace");
+  if (!host || host.dataset.bound) {
+    return;
+  }
+
+  host.dataset.bound = "true";
+
+  host.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-save-review-button]");
+    if (!button) {
+      return;
+    }
+
+    const projectId = button.getAttribute("data-save-review-button");
+    const input = host.querySelector(`[data-review-input="${projectId}"]`);
+    const status = host.querySelector(`[data-review-status="${projectId}"]`);
+    const reviewText = input ? input.value : "";
+    button.disabled = true;
+    if (status) {
+      status.textContent = "Kaydediliyor...";
+    }
+
+    try {
+      await state.dataLayer.saveProjectReview(projectId, reviewText, state.currentUser);
+      if (status) {
+        status.textContent = "Degerlendirme kaydedildi.";
+      }
+    } catch (error) {
+      if (status) {
+        status.textContent = friendlyErrorMessage(error);
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  host.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-teacher-message-form]");
+    if (!form) {
+      return;
+    }
+
+    event.preventDefault();
+    const studentId = form.getAttribute("data-teacher-message-form");
+    const status = form.querySelector("[data-message-status]");
+    const formData = new FormData(form);
+    const text = String(formData.get("text") || "").trim();
+
+    if (!text) {
+      if (status) {
+        status.textContent = "Mesaj bos olamaz.";
+      }
+      return;
+    }
+
+    if (status) {
+      status.textContent = "Gonderiliyor...";
+    }
+
+    try {
+      await state.dataLayer.sendMessage({
+        studentId,
+        text,
+        sender: state.currentUser
+      });
+      form.reset();
+      if (status) {
+        status.textContent = "Mesaj gonderildi.";
+      }
+    } catch (error) {
+      if (status) {
+        status.textContent = friendlyErrorMessage(error);
+      }
+    }
+  });
+}
+
+function renderStudentWorkspace(snapshot) {
+  state.studentWorkspace = snapshot;
+  const uploadHost = document.getElementById("student-project-upload");
+  const projectHost = document.getElementById("student-project-list");
+  const messageHost = document.getElementById("student-message-thread");
+  const uploadConfig = getGoogleDriveUploadConfig();
+
+  if (uploadHost) {
+    uploadHost.innerHTML = isGoogleDriveUploadConfigured()
+      ? `
+        <div class="project-upload-card">
+          <p>Proje dosyaniz ogretmenin Google Drive hesabindaki <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune yuklenir.</p>
+          <p class="muted-text">Acilacak yukleme penceresinde dosya, proje basligi ve kisa aciklama girilir. En fazla ${uploadConfig.maxFileSizeMb} MB onerilir.</p>
+          <div class="inline-actions">
+            <button class="button button-primary" type="button" id="student-drive-upload-button">Proje dosyasi yukle</button>
+          </div>
+          <p class="auth-message" id="student-project-message" aria-live="polite"></p>
+        </div>
+      `
+      : `
+        <div class="empty-state">
+          Google Drive yukleme koprusu henuz ayarlanmadi. Apps Script web app adresi eklenince bu bolum aktif olur.
+        </div>
+      `;
+  }
+
+  if (projectHost) {
+    projectHost.innerHTML = renderProjectCards(snapshot.projects || [], "student");
+  }
+
+  if (messageHost) {
+    messageHost.innerHTML = `
+      ${renderMessageThread(snapshot.messages || [], "student")}
+      <form id="student-message-form" class="message-form">
+        <label class="field">
+          <span>Ogretmene mesaj</span>
+          <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
+        </label>
+        <div class="inline-actions">
+          <button class="button button-primary" type="submit">Mesaj gonder</button>
+        </div>
+        <p class="auth-message" id="student-message-status" aria-live="polite"></p>
+      </form>
+    `;
+  }
+
+  bindStudentWorkspaceActions();
+}
+
+function startStudentWorkspaceSubscription(userId) {
+  if (state.studentWorkspaceUnsubscribe) {
+    state.studentWorkspaceUnsubscribe();
+    state.studentWorkspaceUnsubscribe = null;
+  }
+
+  state.dataLayer.getStudentWorkspace(userId)
+    .then((snapshot) => renderStudentWorkspace(snapshot))
+    .catch((error) => {
+      const messageHost = document.getElementById("student-message-thread");
+      if (messageHost) {
+        messageHost.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
+      }
+    });
+
+  state.studentWorkspaceUnsubscribe = state.dataLayer.subscribeStudentWorkspace(
+    userId,
+    (snapshot) => renderStudentWorkspace(snapshot),
+    (error) => {
+      const messageHost = document.getElementById("student-message-thread");
+      if (messageHost) {
+        messageHost.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
+      }
+    }
+  );
+}
+
 async function renderStudentAttempts(userId) {
   const list = document.getElementById("student-attempts");
   if (!list) {
@@ -490,7 +1025,7 @@ async function renderStudentAttempts(userId) {
 
   const attempts = await state.dataLayer.listAttemptsForUser(userId);
   if (!attempts.length) {
-    list.innerHTML = `<div class="empty-state">Heniz kaydedilmis bir quiz sonucu yok.</div>`;
+    list.innerHTML = `<div class="empty-state">Henuz kaydedilmis bir quiz sonucu yok.</div>`;
     return;
   }
 
@@ -529,7 +1064,7 @@ function renderLoginPage() {
 
   if (state.currentUser) {
     const nextLink = state.currentUser.role === "teacher" ? "ogretmen-paneli.html" : "mini-lab.html";
-    const nextText = state.currentUser.role === "teacher" ? "Ogretmen paneline git" : "Quiz sayfasina git";
+    const nextText = state.currentUser.role === "teacher" ? "Ogretmen paneline git" : "Quiz ve proje alanina git";
     activeSession.innerHTML = `
       <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong></div>
       <div class="inline-actions">
@@ -620,7 +1155,7 @@ function renderQuizPage() {
   }
 
   if (state.currentUser.role === "teacher") {
-    gate.innerHTML = `<div class="gate-card"><h2>Ogretmen hesabi ile acik</h2><p>Ogretmenler quiz yerine ogrenci sonuc panelini kullanir.</p><a class="button button-primary" href="ogretmen-paneli.html">Ogretmen Paneli</a></div>`;
+    gate.innerHTML = `<div class="gate-card"><h2>Ogretmen hesabi ile acik</h2><p>Ogretmenler quiz yerine ogrenci sonuc, proje ve mesaj panelini kullanir.</p><a class="button button-primary" href="ogretmen-paneli.html">Ogretmen Paneli</a></div>`;
     shell.hidden = true;
     return;
   }
@@ -629,6 +1164,7 @@ function renderQuizPage() {
   shell.hidden = false;
   quizBody.innerHTML = renderQuizQuestions();
   renderStudentAttempts(state.currentUser.id);
+  startStudentWorkspaceSubscription(state.currentUser.id);
 
   if (quizForm && !quizForm.dataset.bound) {
     quizForm.dataset.bound = "true";
@@ -657,17 +1193,26 @@ function renderQuizPage() {
 function renderTeacherStats(snapshot) {
   state.teacherSnapshot = snapshot;
   bindTeacherControls(snapshot);
+  bindTeacherWorkspaceActions();
 
   const attempts = getFilteredTeacherAttempts(snapshot);
-  const students = snapshot.students || [];
+  const visibleStudents = getFilteredTeacherStudents(snapshot);
+  const visibleStudentIds = new Set(visibleStudents.map((student) => student.id));
+  const projects = (snapshot.projects || []).filter((project) => visibleStudentIds.has(project.userId));
+  const messages = (snapshot.messages || []).filter((message) => visibleStudentIds.has(message.studentId));
   const totalScore = attempts.reduce((sum, attempt) => sum + attempt.score, 0);
   const averageScore = attempts.length ? Math.round(totalScore / attempts.length) : 0;
   const uniqueAttemptStudents = new Set(attempts.map((attempt) => attempt.userId)).size;
+  const projectStudents = new Set(projects.map((project) => project.userId)).size;
+  const messageThreads = new Set(messages.map((message) => message.studentId)).size;
 
   document.getElementById("teacher-stats").innerHTML = `
-    <article class="stat-card"><span>Kayitli ogrenci</span><strong>${students.length}</strong></article>
+    <article class="stat-card"><span>Kayitli ogrenci</span><strong>${visibleStudents.length}</strong></article>
     <article class="stat-card"><span>Gorunen quiz</span><strong>${attempts.length}</strong></article>
-    <article class="stat-card"><span>Gorunen ogrenci</span><strong>${uniqueAttemptStudents}</strong></article>
+    <article class="stat-card"><span>Quiz ogrencisi</span><strong>${uniqueAttemptStudents}</strong></article>
+    <article class="stat-card"><span>Proje kaydi</span><strong>${projects.length}</strong></article>
+    <article class="stat-card"><span>Proje yukleyen</span><strong>${projectStudents}</strong></article>
+    <article class="stat-card"><span>Mesajlasma</span><strong>${messageThreads}</strong></article>
     <article class="stat-card"><span>Ortalama puan</span><strong>${averageScore}</strong></article>
   `;
 
@@ -675,9 +1220,10 @@ function renderTeacherStats(snapshot) {
   const detailHost = document.getElementById("teacher-details");
   renderTeacherFilterSummary(attempts, snapshot);
   renderTeacherInsights(attempts);
+  renderTeacherProjectWorkspace(snapshot);
 
   if (!attempts.length) {
-    tableHost.innerHTML = `<div class="empty-state">Secili filtrelerde sonuc bulunamadi.</div>`;
+    tableHost.innerHTML = `<div class="empty-state">Secili filtrelerde quiz sonucu bulunamadi.</div>`;
     detailHost.innerHTML = "";
     return;
   }
@@ -723,7 +1269,7 @@ async function renderTeacherDashboard() {
   }
 
   if (state.currentUser.role !== "teacher") {
-    gate.innerHTML = `<div class="gate-card"><h2>Bu alan sadece ogretmen icin</h2><p>Ogrenci hesabi ile quiz sayfasina donebilirsiniz.</p><a class="button button-primary" href="mini-lab.html">Quiz Sayfasi</a></div>`;
+    gate.innerHTML = `<div class="gate-card"><h2>Bu alan sadece ogretmen icin</h2><p>Ogrenci hesabi ile quiz ve proje sayfasina donebilirsiniz.</p><a class="button button-primary" href="mini-lab.html">Ogrenci Sayfasi</a></div>`;
     dashboard.hidden = true;
     return;
   }
@@ -738,7 +1284,7 @@ async function renderTeacherDashboard() {
   try {
     renderTeacherStats(await state.dataLayer.getTeacherSnapshot());
   } catch (error) {
-    document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Sonuclar alinamadi: ${escapeHtml(friendlyErrorMessage(error))}</div>`;
+    document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Veriler alinamadi: ${escapeHtml(friendlyErrorMessage(error))}</div>`;
   }
 
   state.teacherSnapshotUnsubscribe = state.dataLayer.subscribeTeacherSnapshot(

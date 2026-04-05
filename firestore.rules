@@ -37,5 +37,24 @@ service cloud.firestore {
       allow read: if isTeacher() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow update, delete: if false;
     }
+
+    match /projects/{projectId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isTeacher() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isTeacher();
+      allow delete: if false;
+    }
+
+    match /messages/{messageId} {
+      allow create: if isSignedIn() &&
+        (
+          (isTeacher() && request.resource.data.senderRole == "teacher") ||
+          (!isTeacher() &&
+            request.resource.data.senderRole == "student" &&
+            request.resource.data.studentId == request.auth.uid)
+        );
+      allow read: if isTeacher() || (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow update, delete: if false;
+    }
   }
 }

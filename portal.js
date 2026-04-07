@@ -95,6 +95,45 @@ function roleDescription(role) {
   return "Kendi quiz, proje ve mesaj kayitlarini gorur.";
 }
 
+function prettifyEmailName(email) {
+  const localPart = normalizeText(String(email || "").split("@")[0]) || "ogretmen";
+  return localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildAssignmentTargets(snapshot) {
+  const byEmail = new Map();
+
+  (snapshot.teachers || []).forEach((teacher) => {
+    byEmail.set(normalizeText(teacher.email), {
+      value: teacher.id || teacher.email,
+      email: teacher.email,
+      name: teacher.name,
+      role: teacher.role,
+      userId: teacher.id || null
+    });
+  });
+
+  (snapshot.approvedTeacherEmails || []).forEach((email) => {
+    const normalized = normalizeText(email);
+    if (byEmail.has(normalized)) {
+      return;
+    }
+    byEmail.set(normalized, {
+      value: email,
+      email,
+      name: prettifyEmailName(email) || email,
+      role: email === "kutluozgur79@gmail.com" ? "admin" : "teacher",
+      userId: null
+    });
+  });
+
+  return [...byEmail.values()].sort((left, right) => left.name.localeCompare(right.name, "tr"));
+}
+
 function homePathForUser(user) {
   if (!user) return "giris.html";
   return isStaffRole(user.role) ? "ogretmen-paneli.html" : "mini-lab.html";
@@ -1355,6 +1394,7 @@ function buildStudentManagementRows(snapshot) {
 function renderManagementDashboard(snapshot) {
   state.managementSnapshot = snapshot;
   const rows = buildStudentManagementRows(snapshot);
+  const assignmentTargets = buildAssignmentTargets(snapshot);
   const attempts = rows.flatMap((row) => row.attempts);
   const projects = rows.flatMap((row) => row.projects);
   const messages = rows.flatMap((row) => row.messages);
@@ -1383,11 +1423,14 @@ function renderManagementDashboard(snapshot) {
 
   const directoryHost = document.getElementById("teacher-directory");
   if (directoryHost) {
-    directoryHost.innerHTML = (snapshot.teachers || []).length
+    directoryHost.innerHTML = assignmentTargets.length
       ? `
         <div class="summary-card-grid">
-          ${(snapshot.teachers || []).map((teacher) => {
-            const assignedCount = (snapshot.students || []).filter((student) => student.assignedTeacherId === teacher.id).length;
+          ${assignmentTargets.map((teacher) => {
+            const assignedCount = (snapshot.students || []).filter((student) =>
+              student.assignedTeacherId === teacher.userId ||
+              normalizeText(student.assignedTeacherEmail) === normalizeText(teacher.email)
+            ).length;
             return `
               <article class="summary-card">
                 <h3>${escapeHtml(teacher.name)}</h3>
@@ -1495,7 +1538,12 @@ function renderManagementDashboard(snapshot) {
           <div class="assignment-controls">
             <select data-assignment-select="${escapeHtml(row.student.id)}">
               <option value="">Ogretmen sec</option>
-              ${(snapshot.teachers || []).map((teacher) => `<option value="${escapeHtml(teacher.id)}" ${teacher.id === row.student.assignedTeacherId ? "selected" : ""}>${escapeHtml(teacher.name)} (${escapeHtml(roleLabel(teacher.role))})</option>`).join("")}
+              ${assignmentTargets.map((teacher) => {
+                const isSelected = row.student.assignedTeacherId
+                  ? teacher.userId === row.student.assignedTeacherId
+                  : normalizeText(teacher.email) === normalizeText(row.student.assignedTeacherEmail);
+                return `<option value="${escapeHtml(teacher.value)}" ${isSelected ? "selected" : ""}>${escapeHtml(teacher.name)} (${escapeHtml(roleLabel(teacher.role))})</option>`;
+              }).join("")}
             </select>
             <button class="button button-primary" type="button" data-assignment-save="${escapeHtml(row.student.id)}">Kaydet</button>
             <span class="inline-note" data-assignment-status="${escapeHtml(row.student.id)}"></span>
@@ -1520,12 +1568,18 @@ function renderManagementDashboard(snapshot) {
         <p class="auth-message" id="teacher-email-status" aria-live="polite"></p>
       </form>
       <div class="summary-card-grid">
-        ${approvedEmails.length ? approvedEmails.map((email) => `
+        ${approvedEmails.length ? approvedEmails.map((email) => {
+          const assignedCount = (snapshot.students || []).filter((student) => normalizeText(student.assignedTeacherEmail) === normalizeText(email)).length;
+          return `
           <article class="summary-card">
             <h3>${escapeHtml(email)}</h3>
             <p>Bu e-posta ile kayit olan kullanici ogretmen rolune gecer.</p>
+            <div class="summary-metrics">
+              <span>${assignedCount} ogrenci</span>
+            </div>
           </article>
-        `).join("") : `<div class="empty-state">Admin disinda tanimli ek ogretmen e-postasi yok.</div>`}
+        `;
+        }).join("") : `<div class="empty-state">Admin disinda tanimli ek ogretmen e-postasi yok.</div>`}
       </div>
     `;
   }

@@ -278,6 +278,11 @@ function prettifyEmailName(email) {
     .join(" ");
 }
 
+function isApprovedTeacherEmailValue(email, extraEmails = []) {
+  const normalized = normalizeEmail(email);
+  return getMergedApprovedTeacherEmails(extraEmails).includes(normalized);
+}
+
 function filterManagementSnapshot(snapshot, actor) {
   if (!actor || isAdminRole(actor.role)) {
     return snapshot;
@@ -395,7 +400,17 @@ function buildLocalDataLayer() {
   function buildStudentWorkspace(userId) {
     const users = getUsers();
     const student = users.find((user) => user.id === userId) || null;
-    const teacher = student?.assignedTeacherId ? users.find((user) => user.id === student.assignedTeacherId) || null : null;
+    const teacher = student?.assignedTeacherId
+      ? users.find((user) => user.id === student.assignedTeacherId) || null
+      : student?.assignedTeacherEmail
+        ? {
+          id: null,
+          name: student.assignedTeacherName || prettifyEmailName(student.assignedTeacherEmail) || "Yetkili personel",
+          email: student.assignedTeacherEmail,
+          role: "teacher",
+          className: "BILSEM"
+        }
+        : null;
 
     return {
       student,
@@ -611,7 +626,20 @@ function buildLocalDataLayer() {
         throw new Error("Ogrenci kaydi bulunamadi.");
       }
 
-      const teacher = teacherId ? users.find((user) => user.id === teacherId && isStaffRole(user.role)) : null;
+      const normalizedTeacherRef = normalizeEmail(teacherId);
+      let teacher = teacherId
+        ? users.find((user) => (user.id === teacherId || normalizeEmail(user.email) === normalizedTeacherRef) && isStaffRole(user.role))
+        : null;
+
+      if (!teacher && normalizedTeacherRef && isApprovedTeacherEmailValue(normalizedTeacherRef, getStoredApprovedTeacherEmails())) {
+        teacher = {
+          id: null,
+          name: prettifyEmailName(normalizedTeacherRef) || "Ogretmen",
+          email: normalizedTeacherRef,
+          role: "teacher"
+        };
+      }
+
       if (teacherId && !teacher) {
         throw new Error("Atanacak ogretmen bulunamadi.");
       }
@@ -957,7 +985,16 @@ async function buildFirebaseDataLayer() {
             role: "teacher",
             className: "BILSEM"
           } : null;
-        }
+                }
+      }
+      if (!teacher && student?.assignedTeacherEmail) {
+        teacher = {
+          id: null,
+          name: student.assignedTeacherName || prettifyEmailName(student.assignedTeacherEmail) || "Yetkili personel",
+          email: student.assignedTeacherEmail,
+          role: "teacher",
+          className: "BILSEM"
+        };
       }
 
       const [attemptsSnapshot, projectsSnapshot, messagesSnapshot, quizzesSnapshot] = await Promise.all([
@@ -1035,7 +1072,15 @@ async function buildFirebaseDataLayer() {
               }
             );
           } else {
-            cache.teacher = null;
+            cache.teacher = cache.student?.assignedTeacherEmail
+              ? {
+                id: null,
+                name: cache.student.assignedTeacherName || prettifyEmailName(cache.student.assignedTeacherEmail) || "Yetkili personel",
+                email: cache.student.assignedTeacherEmail || "",
+                role: "teacher",
+                className: "BILSEM"
+              }
+              : null;
           }
 
           publish();
@@ -1097,7 +1142,26 @@ async function buildFirebaseDataLayer() {
         throw new Error("Ogrenci kaydi bulunamadi.");
       }
 
-      const teacher = teacherId ? await fetchUserProfile(teacherId) : null;
+      const normalizedTeacherRef = normalizeEmail(teacherId);
+      let teacher = teacherId ? await fetchUserProfile(teacherId) : null;
+
+      if (!teacher && normalizedTeacherRef) {
+        const usersByEmail = await getDocs(query(collection(db, "users"), where("email", "==", normalizedTeacherRef)));
+        teacher = usersByEmail.docs.map(mapUser).find((user) => isStaffRole(user.role)) || null;
+      }
+
+      if (!teacher && normalizedTeacherRef) {
+        const approvedEmails = await this.listApprovedTeacherEmails();
+        if (isApprovedTeacherEmailValue(normalizedTeacherRef, approvedEmails)) {
+          teacher = {
+            id: null,
+            name: prettifyEmailName(normalizedTeacherRef) || "Ogretmen",
+            email: normalizedTeacherRef,
+            role: "teacher"
+          };
+        }
+      }
+
       if (teacherId && !teacher) {
         throw new Error("Atanacak ogretmen bulunamadi.");
       }
@@ -1167,11 +1231,11 @@ async function buildFirebaseDataLayer() {
 
       const [selfProfile, studentsSnapshot, quizzesSnapshot, attemptsSnapshot, projectsSnapshot, messagesSnapshot, staffEmails] = await Promise.all([
         fetchUserProfile(actor.id),
-        getDocs(query(collection(db, "users"), where("assignedTeacherId", "==", actor.id))),
+        getDocs(query(collection(db, "users"), where("assignedTeacherEmail", "==", normalizeEmail(actor.email)))),
         getDocs(query(collection(db, "quizzes"), where("createdBy", "==", actor.id))),
-        getDocs(query(collection(db, "attempts"), where("teacherId", "==", actor.id))),
-        getDocs(query(collection(db, "projects"), where("teacherId", "==", actor.id))),
-        getDocs(query(collection(db, "messages"), where("teacherId", "==", actor.id))),
+        getDocs(query(collection(db, "attempts"), where("teacherEmail", "==", normalizeEmail(actor.email)))),
+        getDocs(query(collection(db, "projects"), where("teacherEmail", "==", normalizeEmail(actor.email)))),
+        getDocs(query(collection(db, "messages"), where("teacherEmail", "==", normalizeEmail(actor.email)))),
         this.listApprovedTeacherEmails()
       ]);
 
@@ -1242,7 +1306,7 @@ async function buildFirebaseDataLayer() {
       const unsubscribeStaffEmails = subscribeWorkspace(collection(db, "staffEmails"), (item) => normalizeEmail(item.id), (items) => { cache.staffEmails = items; }, publish, onError);
 
       const unsubscribeStudents = subscribeWorkspace(
-        query(collection(db, "users"), where("assignedTeacherId", "==", actor.id)),
+        query(collection(db, "users"), where("assignedTeacherEmail", "==", normalizeEmail(actor.email))),
         mapUser,
         (items) => { cache.students = items; },
         publish,
@@ -1258,7 +1322,7 @@ async function buildFirebaseDataLayer() {
       );
 
       const unsubscribeAttempts = subscribeWorkspace(
-        query(collection(db, "attempts"), where("teacherId", "==", actor.id)),
+        query(collection(db, "attempts"), where("teacherEmail", "==", normalizeEmail(actor.email))),
         mapAttempt,
         (items) => { cache.attempts = items; },
         publish,
@@ -1266,7 +1330,7 @@ async function buildFirebaseDataLayer() {
       );
 
       const unsubscribeProjects = subscribeWorkspace(
-        query(collection(db, "projects"), where("teacherId", "==", actor.id)),
+        query(collection(db, "projects"), where("teacherEmail", "==", normalizeEmail(actor.email))),
         mapProject,
         (items) => { cache.projects = items; },
         publish,
@@ -1274,7 +1338,7 @@ async function buildFirebaseDataLayer() {
       );
 
       const unsubscribeMessages = subscribeWorkspace(
-        query(collection(db, "messages"), where("teacherId", "==", actor.id)),
+        query(collection(db, "messages"), where("teacherEmail", "==", normalizeEmail(actor.email))),
         mapMessage,
         (items) => { cache.messages = items; },
         publish,

@@ -62,7 +62,11 @@ service cloud.firestore {
         isAdmin() ||
         isAdminBootstrapEmail() ||
         (isSignedIn() && myAssignedTeacherId() == userId) ||
-        (isTeacher() && (resource.data.assignedTeacherId == request.auth.uid || userId == request.auth.uid));
+        (isTeacher() && (
+          resource.data.assignedTeacherId == request.auth.uid ||
+          resource.data.assignedTeacherEmail == request.auth.token.email ||
+          userId == request.auth.uid
+        ));
 
       allow create: if isOwner(userId) &&
         (
@@ -102,7 +106,10 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid &&
         currentRole() == "student";
       allow read: if isAdmin() ||
-        (isTeacher() && resource.data.teacherId == request.auth.uid) ||
+        (isTeacher() && (
+          resource.data.teacherId == request.auth.uid ||
+          resource.data.teacherEmail == request.auth.token.email
+        )) ||
         (isSignedIn() && resource.data.userId == request.auth.uid);
       allow update, delete: if false;
     }
@@ -112,9 +119,15 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid &&
         currentRole() == "student";
       allow read: if isAdmin() ||
-        (isTeacher() && resource.data.teacherId == request.auth.uid) ||
+        (isTeacher() && (
+          resource.data.teacherId == request.auth.uid ||
+          resource.data.teacherEmail == request.auth.token.email
+        )) ||
         (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow update: if isAdmin() || (isTeacher() && resource.data.teacherId == request.auth.uid);
+      allow update: if isAdmin() || (isTeacher() && (
+        resource.data.teacherId == request.auth.uid ||
+        resource.data.teacherEmail == request.auth.token.email
+      ));
       allow delete: if false;
     }
 
@@ -123,11 +136,17 @@ service cloud.firestore {
         request.resource.data.senderId == request.auth.uid &&
         (
           (currentRole() == "student" && request.resource.data.studentId == request.auth.uid) ||
-          (isTeacher() && request.resource.data.teacherId == request.auth.uid) ||
+          (isTeacher() && (
+            request.resource.data.teacherId == request.auth.uid ||
+            request.resource.data.teacherEmail == request.auth.token.email
+          )) ||
           isAdmin()
         );
       allow read: if isAdmin() ||
-        (isTeacher() && resource.data.teacherId == request.auth.uid) ||
+        (isTeacher() && (
+          resource.data.teacherId == request.auth.uid ||
+          resource.data.teacherEmail == request.auth.token.email
+        )) ||
         (isSignedIn() && resource.data.studentId == request.auth.uid);
       allow update, delete: if false;
     }

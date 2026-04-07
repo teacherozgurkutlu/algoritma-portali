@@ -1251,17 +1251,20 @@ async function buildFirebaseDataLayer() {
     },
     subscribeManagementSnapshot(actor, callback, onError) {
       if (isAdminRole(actor.role)) {
-        const cache = { users: [], quizzes: [], attempts: [], projects: [], messages: [], staffEmails: [] };
+        const cache = { users: null, quizzes: null, attempts: null, projects: null, messages: null, staffEmails: null };
         const publish = () => {
+          if (!cache.users || !cache.staffEmails) {
+            return;
+          }
           const users = cache.users;
           callback({
             approvedTeacherEmails: getMergedApprovedTeacherEmails(cache.staffEmails),
             teachers: users.filter((user) => isStaffRole(user.role)).sort((left, right) => left.name.localeCompare(right.name, "tr")),
             students: users.filter((user) => user.role === "student").sort((left, right) => left.name.localeCompare(right.name, "tr")),
-            quizzes: sortQuizzesNewestFirst(cache.quizzes),
-            attempts: sortAttemptsNewestFirst(cache.attempts),
-            projects: sortProjectsNewestFirst(cache.projects),
-            messages: sortMessagesOldestFirst(cache.messages)
+            quizzes: sortQuizzesNewestFirst(cache.quizzes || []),
+            attempts: sortAttemptsNewestFirst(cache.attempts || []),
+            projects: sortProjectsNewestFirst(cache.projects || []),
+            messages: sortMessagesOldestFirst(cache.messages || [])
           });
         };
 
@@ -1282,16 +1285,19 @@ async function buildFirebaseDataLayer() {
         };
       }
 
-      const cache = { teacher: null, students: [], quizzes: [], attempts: [], projects: [], messages: [], staffEmails: [] };
+      const cache = { teacher: null, students: null, quizzes: null, attempts: null, projects: null, messages: null, staffEmails: null, teacherLoaded: false };
       const publish = () => {
+        if (!cache.teacherLoaded || !cache.students || !cache.staffEmails) {
+          return;
+        }
         callback({
           approvedTeacherEmails: getMergedApprovedTeacherEmails(cache.staffEmails),
           teachers: cache.teacher ? [cache.teacher] : [],
-          students: [...cache.students].sort((left, right) => left.name.localeCompare(right.name, "tr")),
-          quizzes: sortQuizzesNewestFirst(cache.quizzes),
-          attempts: sortAttemptsNewestFirst(cache.attempts),
-          projects: sortProjectsNewestFirst(cache.projects),
-          messages: sortMessagesOldestFirst(cache.messages)
+          students: [...(cache.students || [])].sort((left, right) => left.name.localeCompare(right.name, "tr")),
+          quizzes: sortQuizzesNewestFirst(cache.quizzes || []),
+          attempts: sortAttemptsNewestFirst(cache.attempts || []),
+          projects: sortProjectsNewestFirst(cache.projects || []),
+          messages: sortMessagesOldestFirst(cache.messages || [])
         });
       };
 
@@ -1299,6 +1305,7 @@ async function buildFirebaseDataLayer() {
         doc(db, "users", actor.id),
         (snapshot) => {
           cache.teacher = snapshot.exists() ? mapUser(snapshot) : null;
+          cache.teacherLoaded = true;
           publish();
         },
         onError

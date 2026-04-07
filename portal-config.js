@@ -1,7 +1,8 @@
 window.PORTAL_CONFIG = {
   storageMode: "firebase",
+  portalName: "Altıeylül BİLSEM Proje Yönetim Sistemi",
   admin: {
-    name: "Ogretmen",
+    name: "Sistem Yoneticisi",
     email: "kutluozgur79@gmail.com"
   },
   googleDriveUpload: {

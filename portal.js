@@ -1,59 +1,77 @@
 import {
-  QUIZ_QUESTIONS,
   createDataLayer,
   escapeHtml,
   formatDate,
+  getApprovedTeacherEmails,
   getGoogleDriveUploadConfig,
   getModeLabel,
-  getTeacherEmails,
+  getPortalMeta,
+  isAdminRole,
   isFirebaseModeConfigured,
-  isGoogleDriveUploadConfigured
-} from "./portal-data.js?v=20260406-1";
-
-const PORTAL_CONFIG = window.PORTAL_CONFIG || {};
-const ADMIN_CONFIG = PORTAL_CONFIG.admin || {
-  name: "Ogretmen",
-  email: "ogretmen@algoritma-portal.local"
-};
+  isGoogleDriveUploadConfigured,
+  isStaffRole,
+  isTeacherRole
+} from "./portal-data.js?v=20260407-1";
 
 const state = {
   dataLayer: null,
   currentUser: null,
-  teacherSnapshotUnsubscribe: null,
-  teacherSnapshot: null,
+  managementSnapshot: null,
+  managementSnapshotUnsubscribe: null,
+  studentWorkspace: null,
   studentWorkspaceUnsubscribe: null,
-  studentWorkspace: { projects: [], messages: [] },
-  teacherControlsBound: false,
   driveUploadBridgeBound: false,
   driveUploadBridge: null,
   teacherFilters: {
     search: "",
     className: "all",
     sort: "date_desc"
-  }
+  },
+  quizDraft: createEmptyQuizDraft()
 };
 
 const UPLOAD_CALLBACK_STORAGE_PREFIX = "algoritmaUploadCallback:";
+
+function createEmptyQuestion() {
+  return {
+    prompt: "",
+    options: ["", "", "", ""],
+    correctIndex: 0,
+    explanation: ""
+  };
+}
+
+function createEmptyQuizDraft() {
+  return {
+    title: "",
+    description: "",
+    audience: "all_assigned",
+    targetStudentIds: [],
+    questions: [createEmptyQuestion()]
+  };
+}
 
 function friendlyErrorMessage(error) {
   const text = String(error?.message || error || "");
 
   if (text.includes("CONFIGURATION_NOT_FOUND")) {
-    return "Firebase Authentication henuz etkin degil. Konsolda Authentication > Get started ve Email/Password secenegini acin.";
+    return "Firebase Authentication henuz etkin degil. Authentication > Get started adimini tamamlayin.";
   }
-
   if (text.includes("auth/operation-not-allowed")) {
-    return "Email/Password girisi Firebase Authentication icinde etkinlestirilmemis.";
+    return "Email/Password girisi Firebase Authentication icinde etkin degil.";
   }
-
+  if (text.includes("auth/email-already-in-use")) {
+    return "Bu e-posta zaten kayitli.";
+  }
+  if (text.includes("auth/invalid-credential") || text.includes("auth/wrong-password") || text.includes("auth/user-not-found")) {
+    return "E-posta veya sifre hatali.";
+  }
   if (text.includes("UPLOAD_NOT_CONFIGURED")) {
-    return "Google Drive yukleme koprusu henuz ayarlanmis degil.";
+    return "Google Drive yukleme koprusu henuz ayarlanmadi.";
   }
-
   if (text.includes("UPLOAD_POPUP_BLOCKED")) {
     return "Tarayici yukleme penceresini engelledi. Pop-up izni verip tekrar deneyin.";
   }
-
   if (text.includes("UPLOAD_CANCELLED")) {
     return "Yukleme penceresi kapatildi.";
   }
@@ -61,12 +79,60 @@ function friendlyErrorMessage(error) {
   return text || "Bilinmeyen hata";
 }
 
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function roleLabel(role) {
+  if (role === "admin") return "Admin";
+  if (role === "teacher") return "Ogretmen";
+  return "Ogrenci";
+}
+
+function roleDescription(role) {
+  if (role === "admin") return "Tum sistemi gorur ve atama yapar.";
+  if (role === "teacher") return "Yalnizca atanmis ogrencilerle calisir.";
+  return "Kendi quiz, proje ve mesaj kayitlarini gorur.";
+}
+
+function homePathForUser(user) {
+  if (!user) return "giris.html";
+  return isStaffRole(user.role) ? "ogretmen-paneli.html" : "mini-lab.html";
+}
+
+function nextStepLabel(user) {
+  return isStaffRole(user.role) ? "Yonetim paneline git" : "Quiz merkezine git";
+}
+
+function renderRichText(value) {
+  return escapeHtml(value).replaceAll("\n", "<br>");
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!size) return "-";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getLatestDate(items, fieldName) {
+  return [...items]
+    .map((item) => item[fieldName])
+    .filter(Boolean)
+    .sort((left, right) => new Date(right) - new Date(left))[0] || null;
+}
+
+function toCsvCell(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
 function renderSessionBadges() {
-  const user = state.currentUser;
   const modeLabel = getModeLabel();
 
   document.querySelectorAll("[data-session-status]").forEach((node) => {
-    if (!user) {
+    if (!state.currentUser) {
       node.innerHTML = `
         <span class="status-pill">${modeLabel} mod</span>
         <span class="status-pill">Oturum yok</span>
@@ -75,10 +141,10 @@ function renderSessionBadges() {
       return;
     }
 
-    const roleLabel = user.role === "teacher" ? "Ogretmen" : "Ogrenci";
     node.innerHTML = `
       <span class="status-pill">${modeLabel} mod</span>
-      <span class="status-pill">${escapeHtml(user.name)} - ${roleLabel}</span>
+      <span class="status-pill">${escapeHtml(state.currentUser.name)} • ${roleLabel(state.currentUser.role)}</span>
+      <a class="button button-secondary" href="${homePathForUser(state.currentUser)}">${nextStepLabel(state.currentUser)}</a>
       <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
     `;
   });
@@ -93,26 +159,24 @@ function renderSessionBadges() {
 
 function renderFirebaseSetupWarning() {
   const host = document.getElementById("firebase-warning");
-  if (!host) {
-    return;
-  }
+  if (!host) return;
 
   if (!isFirebaseModeConfigured()) {
     host.innerHTML = `
       <div class="gate-card">
-        <h2>Su an yerel mod aktif</h2>
-        <p>Gercek cok kullanicili kullanim icin <code>portal-config.js</code> dosyasina Firebase ayarlari girilip <code>storageMode</code> degeri <code>firebase</code> yapilmalidir.</p>
+        <h2>Yerel mod aktif</h2>
+        <p>Gercek cok kullanicili kullanim icin <code>portal-config.js</code> icindeki Firebase ayarlarini tamamlayin.</p>
       </div>
     `;
     return;
   }
 
-  if (!isGoogleDriveUploadConfigured() && (document.querySelector("[data-quiz-page]") || document.querySelector("[data-project-page]"))) {
+  if (!isGoogleDriveUploadConfigured() && document.querySelector("[data-project-page]")) {
     const uploadConfig = getGoogleDriveUploadConfig();
     host.innerHTML = `
       <div class="gate-card">
-        <h2>Google Drive yukleme beklemede</h2>
-        <p>Quiz ve mesajlasma aktif. Proje dosyalarinin <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune gidebilmesi icin <code>portal-config.js</code> icindeki <code>googleDriveUpload.webAppUrl</code> alanina Apps Script web app adresini ekleyin.</p>
+        <h2>Drive yukleme koprusu bekliyor</h2>
+        <p>Proje yukleme icin <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune bagli Apps Script adresi tanimlanmali.</p>
       </div>
     `;
     return;
@@ -123,596 +187,16 @@ function renderFirebaseSetupWarning() {
 
 function renderTeacherLoginNote() {
   const host = document.getElementById("teacher-login-note");
-  if (!host) {
-    return;
-  }
+  if (!host) return;
 
-  if (isFirebaseModeConfigured()) {
-    const teacherEmails = getTeacherEmails();
-    host.innerHTML = teacherEmails.length
-      ? `
-        <p><strong>Ogretmen e-postalari:</strong> ${teacherEmails.map(escapeHtml).join(", ")}</p>
-        <p>Bu hesaplarla giren kullanicilar quiz sonuclarini, proje dosyalarini ve mesajlasma ekranini yonetebilir.</p>
-      `
-      : `<p>Firebase modunda ogretmen e-postalari <code>portal-config.js</code> icinde ayarlanir.</p>`;
-    return;
-  }
+  const portalMeta = getPortalMeta();
+  const approvedEmails = getApprovedTeacherEmails();
 
   host.innerHTML = `
-    <p><strong>E-posta:</strong> ${escapeHtml(ADMIN_CONFIG.email)}</p>
-    <p>Yerel modda ogretmen girisi icin <code>admin.localPassword</code> ayari kullanilir. Firebase modunda ise kendi sifrenizle giris yapin.</p>
-    <p>Bu hesap ile <a href="ogretmen-paneli.html">ogretmen paneline</a> ve <a href="proje-yonetimi.html">proje yonetimi</a> sayfasina erisebilirsiniz.</p>
+    <p><strong>Admin e-postasi:</strong> ${escapeHtml(portalMeta.adminEmail)}</p>
+    <p><strong>Tanimli ogretmen e-postalari:</strong> ${approvedEmails.length ? approvedEmails.map(escapeHtml).join(", ") : "Henuz tanim yok"}</p>
+    <p>Ogretmen ve admin rolleri e-posta listesine gore belirlenir. Ogrenci hesaplari normal kayit akisiyla olusturulur.</p>
   `;
-}
-
-function renderQuizQuestions() {
-  return QUIZ_QUESTIONS.map((question, index) => {
-    const options = question.options.map((option, optionIndex) => `
-      <label class="option-item">
-        <input type="radio" name="q-${index}" value="${optionIndex}">
-        <span>${escapeHtml(option)}</span>
-      </label>
-    `).join("");
-
-    return `
-      <article class="question-card">
-        <div class="question-header">
-          <span class="question-count">Soru ${index + 1}</span>
-          <h3>${escapeHtml(question.prompt)}</h3>
-        </div>
-        <div class="option-list">${options}</div>
-      </article>
-    `;
-  }).join("");
-}
-
-function evaluateQuiz(formData) {
-  const answers = QUIZ_QUESTIONS.map((question, index) => {
-    const selectedValue = formData.get(`q-${index}`);
-    const selectedIndex = selectedValue === null ? -1 : Number.parseInt(String(selectedValue), 10);
-    const isCorrect = selectedIndex === question.correctIndex;
-
-    return {
-      prompt: question.prompt,
-      selectedAnswer: selectedIndex >= 0 ? question.options[selectedIndex] : "Bos birakildi",
-      correctAnswer: question.options[question.correctIndex],
-      explanation: question.explanation,
-      isCorrect
-    };
-  });
-
-  const correctCount = answers.filter((answer) => answer.isCorrect).length;
-  return {
-    score: Math.round((correctCount / QUIZ_QUESTIONS.length) * 100),
-    correctCount,
-    wrongCount: QUIZ_QUESTIONS.length - correctCount,
-    answers
-  };
-}
-
-function renderQuizResult(result) {
-  const answerList = result.answers.map((answer, index) => `
-    <li class="${answer.isCorrect ? "answer-correct" : "answer-wrong"}">
-      <strong>${index + 1}. soru:</strong> ${escapeHtml(answer.prompt)}<br>
-      Senin cevabin: ${escapeHtml(answer.selectedAnswer)}<br>
-      Dogru cevap: ${escapeHtml(answer.correctAnswer)}<br>
-      Aciklama: ${escapeHtml(answer.explanation)}
-    </li>
-  `).join("");
-
-  return `
-    <div class="result-summary">
-      <div class="score-badge">${result.score}</div>
-      <div>
-        <h3>Quiz tamamlandi</h3>
-        <p>${result.correctCount} dogru, ${result.wrongCount} yanlis yaptin.</p>
-      </div>
-    </div>
-    <ol class="results-list">${answerList}</ol>
-  `;
-}
-
-function normalizeText(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function renderRichText(value) {
-  return escapeHtml(value).replaceAll("\n", "<br>");
-}
-
-function formatFileSize(bytes) {
-  const size = Number(bytes || 0);
-  if (!size) {
-    return "-";
-  }
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${Math.round(size / 1024)} KB`;
-  }
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function compareAttempts(left, right, sort) {
-  if (sort === "date_asc") {
-    return new Date(left.createdAt) - new Date(right.createdAt);
-  }
-
-  if (sort === "score_desc") {
-    return right.score - left.score || new Date(right.createdAt) - new Date(left.createdAt);
-  }
-
-  if (sort === "score_asc") {
-    return left.score - right.score || new Date(right.createdAt) - new Date(left.createdAt);
-  }
-
-  if (sort === "name_asc") {
-    return normalizeText(left.studentName).localeCompare(normalizeText(right.studentName), "tr");
-  }
-
-  return new Date(right.createdAt) - new Date(left.createdAt);
-}
-
-function getFilteredTeacherAttempts(snapshot) {
-  const attempts = [...(snapshot?.attempts || [])];
-  const search = normalizeText(state.teacherFilters.search);
-  const className = state.teacherFilters.className;
-  const filtered = attempts.filter((attempt) => {
-    const matchesClass = className === "all" || normalizeText(attempt.className) === normalizeText(className);
-    if (!matchesClass) {
-      return false;
-    }
-
-    if (!search) {
-      return true;
-    }
-
-    const haystack = [
-      attempt.studentName,
-      attempt.className,
-      attempt.email
-    ].map(normalizeText).join(" ");
-
-    return haystack.includes(search);
-  });
-
-  filtered.sort((left, right) => compareAttempts(left, right, state.teacherFilters.sort));
-  return filtered;
-}
-
-function renderTeacherFilterSummary(filteredAttempts, snapshot) {
-  const host = document.getElementById("teacher-filter-summary");
-  if (!host) {
-    return;
-  }
-
-  const total = snapshot?.attempts?.length || 0;
-  const filteredStudents = new Set(filteredAttempts.map((attempt) => attempt.userId)).size;
-  const projectCount = (snapshot?.projects || []).length;
-  host.textContent = `${filteredAttempts.length} quiz sonucu - ${filteredStudents} ogrenci - ${projectCount} proje kaydi - toplam quiz kaydi ${total}`;
-}
-
-function toCsvCell(value) {
-  const text = String(value ?? "");
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function buildStudentSummaries(attempts) {
-  const map = new Map();
-
-  attempts.forEach((attempt) => {
-    const key = attempt.userId || attempt.email;
-    const existing = map.get(key) || {
-      userId: attempt.userId,
-      studentName: attempt.studentName,
-      className: attempt.className,
-      email: attempt.email,
-      attemptsCount: 0,
-      totalScore: 0,
-      bestScore: 0,
-      latestAt: attempt.createdAt,
-      latestScore: attempt.score
-    };
-
-    existing.attemptsCount += 1;
-    existing.totalScore += attempt.score;
-    existing.bestScore = Math.max(existing.bestScore, attempt.score);
-
-    if (new Date(attempt.createdAt) > new Date(existing.latestAt)) {
-      existing.latestAt = attempt.createdAt;
-      existing.latestScore = attempt.score;
-    }
-
-    map.set(key, existing);
-  });
-
-  return [...map.values()]
-    .map((item) => ({
-      ...item,
-      averageScore: Math.round(item.totalScore / item.attemptsCount)
-    }))
-    .sort((left, right) =>
-      right.bestScore - left.bestScore ||
-      right.averageScore - left.averageScore ||
-      normalizeText(left.studentName).localeCompare(normalizeText(right.studentName), "tr")
-    );
-}
-
-function buildQuestionAnalysis(attempts) {
-  const stats = new Map();
-
-  attempts.forEach((attempt) => {
-    (attempt.answers || []).forEach((answer, index) => {
-      const key = `${index + 1}`;
-      const existing = stats.get(key) || {
-        number: index + 1,
-        prompt: answer.prompt,
-        total: 0,
-        wrong: 0,
-        correct: 0
-      };
-
-      existing.total += 1;
-      if (answer.isCorrect) {
-        existing.correct += 1;
-      } else {
-        existing.wrong += 1;
-      }
-
-      stats.set(key, existing);
-    });
-  });
-
-  return [...stats.values()]
-    .map((item) => ({
-      ...item,
-      wrongRate: item.total ? Math.round((item.wrong / item.total) * 100) : 0
-    }))
-    .sort((left, right) => right.wrong - left.wrong || right.wrongRate - left.wrongRate || left.number - right.number);
-}
-
-function renderTeacherInsights(filteredAttempts) {
-  const summaryHost = document.getElementById("teacher-student-summary");
-  const topHost = document.getElementById("teacher-top-students");
-  const questionHost = document.getElementById("teacher-question-analysis");
-
-  if (!summaryHost || !topHost || !questionHost) {
-    return;
-  }
-
-  if (!filteredAttempts.length) {
-    summaryHost.innerHTML = `<div class="empty-state">Ogrenci ozeti icin sonuc bulunamadi.</div>`;
-    topHost.innerHTML = `<div class="empty-state">Siralama olusturulamadi.</div>`;
-    questionHost.innerHTML = `<div class="empty-state">Soru analizi icin yeterli veri yok.</div>`;
-    return;
-  }
-
-  const summaries = buildStudentSummaries(filteredAttempts);
-  const questionAnalysis = buildQuestionAnalysis(filteredAttempts);
-
-  summaryHost.innerHTML = `
-    <div class="summary-card-grid">
-      ${summaries.map((item) => `
-        <article class="summary-card">
-          <h3>${escapeHtml(item.studentName)}</h3>
-          <p>${escapeHtml(item.className || "-")} • ${escapeHtml(item.email || "-")}</p>
-          <div class="summary-metrics">
-            <span>Deneme: <strong>${item.attemptsCount}</strong></span>
-            <span>En iyi: <strong>${item.bestScore}</strong></span>
-            <span>Ortalama: <strong>${item.averageScore}</strong></span>
-            <span>Son puan: <strong>${item.latestScore}</strong></span>
-          </div>
-        </article>
-      `).join("")}
-    </div>
-  `;
-
-  topHost.innerHTML = `
-    <div class="rank-list">
-      ${summaries.slice(0, 5).map((item, index) => `
-        <article class="rank-item">
-          <div class="rank-badge">${index + 1}</div>
-          <div>
-            <h3>${escapeHtml(item.studentName)}</h3>
-            <p>${escapeHtml(item.className || "-")} • En iyi ${item.bestScore} • Ortalama ${item.averageScore}</p>
-          </div>
-        </article>
-      `).join("")}
-    </div>
-  `;
-
-  questionHost.innerHTML = `
-    <div class="question-analysis-list">
-      ${questionAnalysis.map((item) => `
-        <article class="question-analysis-item">
-          <div class="question-analysis-head">
-            <span class="question-badge">Soru ${item.number}</span>
-            <strong>%${item.wrongRate} yanlis</strong>
-          </div>
-          <p>${escapeHtml(item.prompt)}</p>
-          <div class="summary-metrics">
-            <span>Yanlis: <strong>${item.wrong}</strong></span>
-            <span>Dogru: <strong>${item.correct}</strong></span>
-            <span>Toplam: <strong>${item.total}</strong></span>
-          </div>
-        </article>
-      `).join("")}
-    </div>
-  `;
-}
-
-function getFilteredTeacherStudents(snapshot) {
-  const students = [...(snapshot?.students || [])];
-  const search = normalizeText(state.teacherFilters.search);
-  const className = state.teacherFilters.className;
-
-  return students.filter((student) => {
-    const matchesClass = className === "all" || normalizeText(student.className) === normalizeText(className);
-    if (!matchesClass) {
-      return false;
-    }
-
-    if (!search) {
-      return true;
-    }
-
-    const haystack = [
-      student.name,
-      student.className,
-      student.email
-    ].map(normalizeText).join(" ");
-
-    return haystack.includes(search);
-  });
-}
-
-function buildTeacherStudentWorkspace(snapshot) {
-  const filteredStudents = getFilteredTeacherStudents(snapshot);
-  const projectMap = new Map();
-  const messageMap = new Map();
-
-  (snapshot?.projects || []).forEach((project) => {
-    const list = projectMap.get(project.userId) || [];
-    list.push(project);
-    projectMap.set(project.userId, list);
-  });
-
-  (snapshot?.messages || []).forEach((message) => {
-    const list = messageMap.get(message.studentId) || [];
-    list.push(message);
-    messageMap.set(message.studentId, list);
-  });
-
-  return filteredStudents
-    .map((student) => {
-      const projects = [...(projectMap.get(student.id) || [])].sort((left, right) => new Date(right.uploadedAt) - new Date(left.uploadedAt));
-      const messages = [...(messageMap.get(student.id) || [])].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
-      const latestProjectAt = projects[0]?.uploadedAt || null;
-      const latestMessageAt = messages[messages.length - 1]?.createdAt || null;
-      const latestActivityAt = latestProjectAt && latestMessageAt
-        ? (new Date(latestProjectAt) > new Date(latestMessageAt) ? latestProjectAt : latestMessageAt)
-        : latestProjectAt || latestMessageAt || student.createdAt;
-
-      return {
-        student,
-        projects,
-        messages,
-        latestActivityAt
-      };
-    })
-    .sort((left, right) => {
-      if (state.teacherFilters.sort === "name_asc") {
-        return normalizeText(left.student.name).localeCompare(normalizeText(right.student.name), "tr");
-      }
-      return new Date(right.latestActivityAt) - new Date(left.latestActivityAt);
-    });
-}
-
-function renderMessageThread(messages, viewerRole) {
-  if (!messages.length) {
-    return `<div class="empty-state">Henuz mesaj yok.</div>`;
-  }
-
-  return `
-    <div class="chat-thread">
-      ${messages.map((message) => {
-        const isOwn = message.senderRole === viewerRole;
-        return `
-          <article class="chat-bubble ${isOwn ? "chat-bubble-self" : "chat-bubble-other"}">
-            <div class="chat-meta">
-              <strong>${escapeHtml(message.senderName)}</strong>
-              <span>${message.senderRole === "teacher" ? "Ogretmen" : "Ogrenci"} - ${formatDate(message.createdAt)}</span>
-            </div>
-            <p>${renderRichText(message.text)}</p>
-          </article>
-        `;
-      }).join("")}
-    </div>
-  `;
-}
-
-function renderProjectCards(projects, viewerRole) {
-  if (!projects.length) {
-    return `<div class="empty-state">Henuz proje dosyasi yuklenmedi.</div>`;
-  }
-
-  return `
-    <div class="project-list">
-      ${projects.map((project) => `
-        <article class="project-card">
-          <div class="project-head">
-            <div>
-              <h3>${escapeHtml(project.title || project.driveFileName || "Proje dosyasi")}</h3>
-              <p>${formatDate(project.uploadedAt)} - ${escapeHtml(project.driveFileName || "Dosya adi yok")} - ${escapeHtml(formatFileSize(project.size))}</p>
-            </div>
-            ${viewerRole === "teacher" && project.driveFileUrl
-              ? `<a class="button button-secondary" href="${escapeHtml(project.driveFileUrl)}" target="_blank" rel="noopener noreferrer">Drive'da ac</a>`
-              : `<span class="status-pill">Drive kaydi olustu</span>`}
-          </div>
-          ${project.description ? `<p>${renderRichText(project.description)}</p>` : `<p class="muted-text">Aciklama eklenmemis.</p>`}
-          <div class="review-block">
-            <h4>Ogretmen degerlendirmesi</h4>
-            ${viewerRole === "teacher"
-              ? `
-                <textarea class="review-textarea" data-review-input="${escapeHtml(project.id)}" placeholder="Bu proje icin degerlendirme yazin...">${escapeHtml(project.reviewText || "")}</textarea>
-                <div class="inline-actions">
-                  <button class="button button-primary" type="button" data-save-review-button="${escapeHtml(project.id)}">Degerlendirmeyi kaydet</button>
-                  <span class="inline-note" data-review-status="${escapeHtml(project.id)}">${project.reviewUpdatedAt ? `Son guncelleme: ${formatDate(project.reviewUpdatedAt)}` : ""}</span>
-                </div>
-              `
-              : project.reviewText
-                ? `
-                  <div class="review-display">${renderRichText(project.reviewText)}</div>
-                  <p class="muted-text">${project.reviewUpdatedAt ? `Son guncelleme: ${formatDate(project.reviewUpdatedAt)}` : ""}</p>
-                `
-                : `<div class="empty-state">Ogretmen henuz bir degerlendirme yazmadi.</div>`}
-          </div>
-        </article>
-      `).join("")}
-    </div>
-  `;
-}
-
-function renderTeacherProjectWorkspace(snapshot) {
-  const host = document.getElementById("teacher-project-workspace");
-  if (!host) {
-    return;
-  }
-
-  const workspaces = buildTeacherStudentWorkspace(snapshot);
-
-  if (!workspaces.length) {
-    host.innerHTML = `<div class="empty-state">Secili filtrelerde ogrenci bulunamadi.</div>`;
-    return;
-  }
-
-  host.innerHTML = workspaces.map(({ student, projects, messages }) => `
-    <details class="attempt-card teacher-student-card">
-      <summary>
-        <span>${escapeHtml(student.name)} - ${escapeHtml(student.className || "-")}</span>
-        <strong>${projects.length} proje</strong>
-        <span>${messages.length} mesaj</span>
-      </summary>
-      <div class="teacher-student-content">
-        <section class="teacher-student-column">
-          <div class="student-mini-meta">
-            <span class="status-pill">${escapeHtml(student.email || "-")}</span>
-            <span class="status-pill">${projects.length ? `Son yukleme: ${formatDate(projects[0].uploadedAt)}` : "Yukleme yok"}</span>
-          </div>
-          ${renderProjectCards(projects, "teacher")}
-        </section>
-        <section class="teacher-student-column">
-          <h3>Mesajlasma</h3>
-          ${renderMessageThread(messages, "teacher")}
-          <form class="message-form" data-teacher-message-form="${escapeHtml(student.id)}">
-            <label class="field">
-              <span>${escapeHtml(student.name)} icin mesaj</span>
-              <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
-            </label>
-            <div class="inline-actions">
-              <button class="button button-primary" type="submit">Mesaj gonder</button>
-            </div>
-            <p class="auth-message" data-message-status aria-live="polite"></p>
-          </form>
-        </section>
-      </div>
-    </details>
-  `).join("");
-}
-
-function bindTeacherControls(snapshot) {
-  const searchInput = document.getElementById("teacher-search");
-  const classFilter = document.getElementById("teacher-class-filter");
-  const sortSelect = document.getElementById("teacher-sort");
-  const resetButton = document.getElementById("teacher-filter-reset");
-  const csvButton = document.getElementById("download-results-csv");
-  const jsonButton = document.getElementById("download-results");
-
-  if (!searchInput || !classFilter || !sortSelect || !resetButton) {
-    return;
-  }
-
-  const classNames = [...new Set((snapshot.students || []).map((student) => student.className).filter(Boolean))].sort((left, right) => left.localeCompare(right, "tr"));
-  const currentValue = classFilter.value || "all";
-  classFilter.innerHTML = `<option value="all">Tum siniflar</option>${classNames.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}`;
-  classFilter.value = classNames.includes(currentValue) ? currentValue : state.teacherFilters.className;
-
-  if (!state.teacherControlsBound) {
-    state.teacherControlsBound = true;
-
-    searchInput.addEventListener("input", () => {
-      state.teacherFilters.search = searchInput.value;
-      renderTeacherStats(state.teacherSnapshot);
-    });
-
-    classFilter.addEventListener("change", () => {
-      state.teacherFilters.className = classFilter.value;
-      renderTeacherStats(state.teacherSnapshot);
-    });
-
-    sortSelect.addEventListener("change", () => {
-      state.teacherFilters.sort = sortSelect.value;
-      renderTeacherStats(state.teacherSnapshot);
-    });
-
-    resetButton.addEventListener("click", () => {
-      state.teacherFilters = {
-        search: "",
-        className: "all",
-        sort: "date_desc"
-      };
-      searchInput.value = "";
-      classFilter.value = "all";
-      sortSelect.value = "date_desc";
-      renderTeacherStats(state.teacherSnapshot);
-    });
-
-    jsonButton?.addEventListener("click", () => {
-      const attempts = getFilteredTeacherAttempts(state.teacherSnapshot);
-      const blob = new Blob([JSON.stringify(attempts, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "quiz-sonuclari.json";
-      link.click();
-      URL.revokeObjectURL(url);
-    });
-
-    csvButton?.addEventListener("click", () => {
-      const attempts = getFilteredTeacherAttempts(state.teacherSnapshot);
-      const header = [
-        "Ogrenci",
-        "Sinif",
-        "E-posta",
-        "Dogru",
-        "Yanlis",
-        "Puan",
-        "Tarih"
-      ];
-      const rows = attempts.map((attempt) => [
-        attempt.studentName,
-        attempt.className,
-        attempt.email,
-        attempt.correctCount,
-        attempt.wrongCount,
-        attempt.score,
-        formatDate(attempt.createdAt)
-      ]);
-      const csv = [header, ...rows].map((row) => row.map(toCsvCell).join(",")).join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "quiz-sonuclari.csv";
-      link.click();
-      URL.revokeObjectURL(url);
-    });
-  }
-
-  searchInput.value = state.teacherFilters.search;
-  classFilter.value = classNames.includes(state.teacherFilters.className) ? state.teacherFilters.className : "all";
-  sortSelect.value = state.teacherFilters.sort;
 }
 
 function bindDriveUploadBridge() {
@@ -821,249 +305,49 @@ function openDriveUploadPopup() {
   });
 }
 
-function bindStudentWorkspaceActions() {
-  const uploadButton = document.getElementById("student-drive-upload-button");
-  const uploadMessage = document.getElementById("student-project-message");
-  const messageForm = document.getElementById("student-message-form");
-  const messageStatus = document.getElementById("student-message-status");
+function evaluateQuiz(quiz, formData) {
+  const answers = (quiz.questions || []).map((question, index) => {
+    const selectedValue = formData.get(`quiz-${quiz.id}-q-${index}`);
+    const selectedIndex = selectedValue === null ? -1 : Number.parseInt(String(selectedValue), 10);
+    const isCorrect = selectedIndex === question.correctIndex;
 
-  if (uploadButton && !uploadButton.dataset.bound) {
-    uploadButton.dataset.bound = "true";
-    uploadButton.addEventListener("click", async () => {
-      uploadButton.disabled = true;
-      if (uploadMessage) {
-        uploadMessage.textContent = "Yukleme penceresi aciliyor...";
-      }
-
-      try {
-        const projectPayload = await openDriveUploadPopup();
-        if (uploadMessage) {
-          uploadMessage.textContent = "Dosya Drive'a kaydedildi. Portal kaydi olusturuluyor...";
-        }
-        await state.dataLayer.saveProjectRecord(state.currentUser, projectPayload);
-        if (uploadMessage) {
-          uploadMessage.textContent = "Proje dosyaniz basariyla kaydedildi.";
-        }
-      } catch (error) {
-        if (uploadMessage) {
-          uploadMessage.textContent = friendlyErrorMessage(error);
-        }
-      } finally {
-        uploadButton.disabled = false;
-      }
-    });
-  }
-
-  if (messageForm && !messageForm.dataset.bound) {
-    messageForm.dataset.bound = "true";
-    messageForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (messageStatus) {
-        messageStatus.textContent = "";
-      }
-      const formData = new FormData(messageForm);
-      const text = String(formData.get("text") || "").trim();
-      if (!text) {
-        if (messageStatus) {
-          messageStatus.textContent = "Mesaj bos olamaz.";
-        }
-        return;
-      }
-
-      try {
-        await state.dataLayer.sendMessage({
-          studentId: state.currentUser.id,
-          text,
-          sender: state.currentUser
-        });
-        messageForm.reset();
-        if (messageStatus) {
-          messageStatus.textContent = "Mesaj gonderildi.";
-        }
-      } catch (error) {
-        if (messageStatus) {
-          messageStatus.textContent = friendlyErrorMessage(error);
-        }
-      }
-    });
-  }
-}
-
-function bindTeacherWorkspaceActions() {
-  const host = document.getElementById("teacher-project-workspace");
-  if (!host || host.dataset.bound) {
-    return;
-  }
-
-  host.dataset.bound = "true";
-
-  host.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-save-review-button]");
-    if (!button) {
-      return;
-    }
-
-    const projectId = button.getAttribute("data-save-review-button");
-    const input = host.querySelector(`[data-review-input="${projectId}"]`);
-    const status = host.querySelector(`[data-review-status="${projectId}"]`);
-    const reviewText = input ? input.value : "";
-    button.disabled = true;
-    if (status) {
-      status.textContent = "Kaydediliyor...";
-    }
-
-    try {
-      await state.dataLayer.saveProjectReview(projectId, reviewText, state.currentUser);
-      if (status) {
-        status.textContent = "Degerlendirme kaydedildi.";
-      }
-    } catch (error) {
-      if (status) {
-        status.textContent = friendlyErrorMessage(error);
-      }
-    } finally {
-      button.disabled = false;
-    }
+    return {
+      prompt: question.prompt,
+      selectedAnswer: selectedIndex >= 0 ? question.options[selectedIndex] : "Bos birakildi",
+      correctAnswer: question.options[question.correctIndex],
+      explanation: question.explanation,
+      isCorrect
+    };
   });
 
-  host.addEventListener("submit", async (event) => {
-    const form = event.target.closest("[data-teacher-message-form]");
-    if (!form) {
-      return;
-    }
-
-    event.preventDefault();
-    const studentId = form.getAttribute("data-teacher-message-form");
-    const status = form.querySelector("[data-message-status]");
-    const formData = new FormData(form);
-    const text = String(formData.get("text") || "").trim();
-
-    if (!text) {
-      if (status) {
-        status.textContent = "Mesaj bos olamaz.";
-      }
-      return;
-    }
-
-    if (status) {
-      status.textContent = "Gonderiliyor...";
-    }
-
-    try {
-      await state.dataLayer.sendMessage({
-        studentId,
-        text,
-        sender: state.currentUser
-      });
-      form.reset();
-      if (status) {
-        status.textContent = "Mesaj gonderildi.";
-      }
-    } catch (error) {
-      if (status) {
-        status.textContent = friendlyErrorMessage(error);
-      }
-    }
-  });
+  const correctCount = answers.filter((answer) => answer.isCorrect).length;
+  return {
+    total: answers.length,
+    score: Math.round((correctCount / answers.length) * 100),
+    correctCount,
+    wrongCount: answers.length - correctCount,
+    answers
+  };
 }
 
-function renderStudentWorkspace(snapshot) {
-  state.studentWorkspace = snapshot;
-  const uploadHost = document.getElementById("student-project-upload");
-  const projectHost = document.getElementById("student-project-list");
-  const messageHost = document.getElementById("student-message-thread");
-  const uploadConfig = getGoogleDriveUploadConfig();
+function renderStudentAttempts(attempts) {
+  const host = document.getElementById("student-attempts");
+  if (!host) return;
 
-  if (uploadHost) {
-    uploadHost.innerHTML = isGoogleDriveUploadConfigured()
-      ? `
-        <div class="project-upload-card">
-          <p>Proje dosyaniz ogretmenin Google Drive hesabindaki <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune yuklenir.</p>
-          <p class="muted-text">Acilacak yukleme penceresinde dosya, proje basligi ve kisa aciklama girilir. En fazla ${uploadConfig.maxFileSizeMb} MB onerilir.</p>
-          <div class="inline-actions">
-            <button class="button button-primary" type="button" id="student-drive-upload-button">Proje dosyasi yukle</button>
-          </div>
-          <p class="auth-message" id="student-project-message" aria-live="polite"></p>
-        </div>
-      `
-      : `
-        <div class="empty-state">
-          Google Drive yukleme koprusu henuz ayarlanmadi. Apps Script web app adresi eklenince bu bolum aktif olur.
-        </div>
-      `;
-  }
-
-  if (projectHost) {
-    projectHost.innerHTML = renderProjectCards(snapshot.projects || [], "student");
-  }
-
-  if (messageHost) {
-    messageHost.innerHTML = `
-      ${renderMessageThread(snapshot.messages || [], "student")}
-      <form id="student-message-form" class="message-form">
-        <label class="field">
-          <span>Ogretmene mesaj</span>
-          <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
-        </label>
-        <div class="inline-actions">
-          <button class="button button-primary" type="submit">Mesaj gonder</button>
-        </div>
-        <p class="auth-message" id="student-message-status" aria-live="polite"></p>
-      </form>
-    `;
-  }
-
-  bindStudentWorkspaceActions();
-}
-
-function startStudentWorkspaceSubscription(userId) {
-  if (state.studentWorkspaceUnsubscribe) {
-    state.studentWorkspaceUnsubscribe();
-    state.studentWorkspaceUnsubscribe = null;
-  }
-
-  state.dataLayer.getStudentWorkspace(userId)
-    .then((snapshot) => renderStudentWorkspace(snapshot))
-    .catch((error) => {
-      const messageHost = document.getElementById("student-message-thread");
-      if (messageHost) {
-        messageHost.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
-      }
-    });
-
-  state.studentWorkspaceUnsubscribe = state.dataLayer.subscribeStudentWorkspace(
-    userId,
-    (snapshot) => renderStudentWorkspace(snapshot),
-    (error) => {
-      const messageHost = document.getElementById("student-message-thread");
-      if (messageHost) {
-        messageHost.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
-      }
-    }
-  );
-}
-
-async function renderStudentAttempts(userId) {
-  const list = document.getElementById("student-attempts");
-  if (!list) {
-    return;
-  }
-
-  const attempts = await state.dataLayer.listAttemptsForUser(userId);
   if (!attempts.length) {
-    list.innerHTML = `<div class="empty-state">Henuz kaydedilmis bir quiz sonucu yok.</div>`;
+    host.innerHTML = `<div class="empty-state">Henuz tamamlanmis bir quiz sonucu yok.</div>`;
     return;
   }
 
-  list.innerHTML = attempts.map((attempt) => `
+  host.innerHTML = attempts.map((attempt) => `
     <details class="attempt-card">
       <summary>
-        <span>${formatDate(attempt.createdAt)}</span>
+        <span>${escapeHtml(attempt.quizTitle || "Quiz")}</span>
         <strong>${attempt.correctCount}/${attempt.total} dogru</strong>
-        <span>${attempt.score} puan</span>
+        <span>${attempt.score} puan • ${formatDate(attempt.createdAt)}</span>
       </summary>
       <ol class="results-list compact-list">
-        ${attempt.answers.map((answer, index) => `
+        ${(attempt.answers || []).map((answer, index) => `
           <li class="${answer.isCorrect ? "answer-correct" : "answer-wrong"}">
             <strong>${index + 1}. soru</strong> -
             Secilen: ${escapeHtml(answer.selectedAnswer)} -
@@ -1075,10 +359,603 @@ async function renderStudentAttempts(userId) {
   `).join("");
 }
 
-function renderLoginPage() {
-  if (!document.querySelector("[data-login-page]")) {
+function renderQuizQuestionList(quiz) {
+  return (quiz.questions || []).map((question, index) => `
+    <article class="question-card">
+      <div class="question-header">
+        <span class="question-count">Soru ${index + 1}</span>
+        <h3>${escapeHtml(question.prompt)}</h3>
+      </div>
+      <div class="option-list">
+        ${question.options.map((option, optionIndex) => `
+          <label class="option-item">
+            <input type="radio" name="quiz-${quiz.id}-q-${index}" value="${optionIndex}">
+            <span>${escapeHtml(option)}</span>
+          </label>
+        `).join("")}
+      </div>
+      ${question.explanation ? `<p class="muted-text">Aciklama notu: ${escapeHtml(question.explanation)}</p>` : ""}
+    </article>
+  `).join("");
+}
+
+function renderStudentQuizStats(snapshot) {
+  const host = document.getElementById("student-quiz-stats");
+  if (!host) return;
+
+  const attempts = snapshot.attempts || [];
+  const quizzes = snapshot.quizzes || [];
+  const bestScore = attempts.length ? Math.max(...attempts.map((attempt) => attempt.score)) : 0;
+
+  host.innerHTML = `
+    <article class="stat-card"><span>Atanan ogretmen</span><strong>${snapshot.teacher ? escapeHtml(snapshot.teacher.name) : "-"}</strong></article>
+    <article class="stat-card"><span>Aktif quiz</span><strong>${quizzes.length}</strong></article>
+    <article class="stat-card"><span>Tamamlanan quiz</span><strong>${attempts.length}</strong></article>
+    <article class="stat-card"><span>En iyi puan</span><strong>${bestScore}</strong></article>
+  `;
+}
+
+function renderStudentQuizOverview(snapshot) {
+  const host = document.getElementById("student-quiz-overview");
+  if (!host) return;
+
+  if (!snapshot.teacher) {
+    host.innerHTML = `
+      <div class="gate-card">
+        <h2>Ogretmen atamasi bekleniyor</h2>
+        <p>Admin henuz size bir ogretmen atamadi. Atama yapildiktan sonra quizleriniz burada listelenecek.</p>
+      </div>
+    `;
     return;
   }
+
+  host.innerHTML = `
+    <div class="summary-card-grid">
+      <article class="summary-card">
+        <h3>${escapeHtml(snapshot.teacher.name)}</h3>
+        <p>${escapeHtml(snapshot.teacher.email || "-")} • ${escapeHtml(snapshot.teacher.className || "BILSEM")}</p>
+        <div class="summary-metrics">
+          <span>${(snapshot.quizzes || []).length} quiz</span>
+          <span>${(snapshot.attempts || []).length} sonuc</span>
+          <span>${(snapshot.projects || []).length} proje</span>
+        </div>
+      </article>
+    </div>
+  `;
+}
+
+function renderStudentQuizList(snapshot) {
+  const host = document.getElementById("student-quiz-list");
+  if (!host) return;
+
+  if (!snapshot.teacher) {
+    host.innerHTML = `<div class="empty-state">Ogretmen atamasi tamamlanmadan quiz acilmaz.</div>`;
+    return;
+  }
+
+  const attemptMap = new Map();
+  (snapshot.attempts || []).forEach((attempt) => {
+    const items = attemptMap.get(attempt.quizId) || [];
+    items.push(attempt);
+    attemptMap.set(attempt.quizId, items.sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt)));
+  });
+
+  const quizzes = snapshot.quizzes || [];
+  if (!quizzes.length) {
+    host.innerHTML = `<div class="empty-state">Size atanmis bir quiz bulunmuyor.</div>`;
+    return;
+  }
+
+  host.innerHTML = quizzes.map((quiz) => {
+    const attempts = attemptMap.get(quiz.id) || [];
+    const latest = attempts[0];
+    return `
+      <details class="attempt-card quiz-assignment-card">
+        <summary>
+          <span>${escapeHtml(quiz.title)}</span>
+          <strong>${latest ? `${latest.score} puan` : "Henuz cozulmedi"}</strong>
+          <span>${attempts.length ? `${attempts.length} deneme` : `${quiz.questionCount} soru`}</span>
+        </summary>
+        <div class="quiz-card-body">
+          ${quiz.description ? `<p>${renderRichText(quiz.description)}</p>` : `<p class="muted-text">Aciklama eklenmedi.</p>`}
+          <div class="summary-metrics">
+            <span>${quiz.questionCount} soru</span>
+            <span>Olusturan: ${escapeHtml(quiz.createdByName || "-")}</span>
+            <span>${latest ? `Son sonuc: ${latest.score}` : "Ilk deneme acik"}</span>
+          </div>
+          <form class="quiz-form" data-student-quiz-form="${escapeHtml(quiz.id)}">
+            ${renderQuizQuestionList(quiz)}
+            <div class="inline-actions">
+              <button class="button button-primary" type="submit">Quiz gonder</button>
+            </div>
+            <p class="auth-message" data-quiz-status aria-live="polite"></p>
+          </form>
+        </div>
+      </details>
+    `;
+  }).join("");
+}
+
+function buildQuizStatsById(snapshot) {
+  const stats = new Map();
+
+  (snapshot.quizzes || []).forEach((quiz) => {
+    stats.set(quiz.id, {
+      quiz,
+      attempts: [],
+      averageScore: 0
+    });
+  });
+
+  (snapshot.attempts || []).forEach((attempt) => {
+    const item = stats.get(attempt.quizId);
+    if (!item) {
+      return;
+    }
+    item.attempts.push(attempt);
+  });
+
+  stats.forEach((item) => {
+    const totalScore = item.attempts.reduce((sum, attempt) => sum + attempt.score, 0);
+    item.averageScore = item.attempts.length ? Math.round(totalScore / item.attempts.length) : 0;
+  });
+
+  return stats;
+}
+
+function renderStaffQuizStats(snapshot) {
+  const host = document.getElementById("staff-quiz-stats");
+  if (!host) return;
+
+  const attempts = snapshot.attempts || [];
+  const students = snapshot.students || [];
+  const quizzes = snapshot.quizzes || [];
+  const average = attempts.length ? Math.round(attempts.reduce((sum, attempt) => sum + attempt.score, 0) / attempts.length) : 0;
+
+  host.innerHTML = `
+    <article class="stat-card"><span>Gorunen ogrenci</span><strong>${students.length}</strong></article>
+    <article class="stat-card"><span>Olusturulan quiz</span><strong>${quizzes.length}</strong></article>
+    <article class="stat-card"><span>Toplam sonuc</span><strong>${attempts.length}</strong></article>
+    <article class="stat-card"><span>Ortalama puan</span><strong>${average}</strong></article>
+  `;
+}
+
+function getAvailableQuizStudents(snapshot) {
+  return [...(snapshot?.students || [])].sort((left, right) => left.name.localeCompare(right.name, "tr"));
+}
+
+function getDraftAudienceOptions() {
+  if (isAdminRole(state.currentUser?.role)) {
+    return [
+      { value: "all_students", label: "Tum ogrenciler" },
+      { value: "selected_students", label: "Secili ogrenciler" }
+    ];
+  }
+  return [
+    { value: "all_assigned", label: "Atanmis tum ogrencilerim" },
+    { value: "selected_students", label: "Secili ogrenciler" }
+  ];
+}
+
+function renderQuizBuilder(snapshot) {
+  const host = document.getElementById("quiz-builder-shell");
+  if (!host) return;
+
+  const students = getAvailableQuizStudents(snapshot);
+  const audienceOptions = getDraftAudienceOptions();
+  const allowedAudienceValues = new Set(audienceOptions.map((option) => option.value));
+  if (!allowedAudienceValues.has(state.quizDraft.audience)) {
+    state.quizDraft.audience = isAdminRole(state.currentUser?.role) ? "all_students" : "all_assigned";
+  }
+  const showSelection = state.quizDraft.audience === "selected_students";
+  const availableStudentIds = new Set(students.map((student) => student.id));
+  state.quizDraft.targetStudentIds = state.quizDraft.targetStudentIds.filter((id) => availableStudentIds.has(id));
+
+  host.innerHTML = `
+    <form id="quiz-builder-form" class="form-grid">
+      <label class="field">
+        <span>Quiz basligi</span>
+        <input type="text" name="title" value="${escapeHtml(state.quizDraft.title)}" placeholder="Ornek: Proje Fikri ve Arastirma Hazirligi">
+      </label>
+      <label class="field">
+        <span>Aciklama</span>
+        <textarea name="description" class="message-textarea" placeholder="Quiz amacini ve beklentiyi yazin">${escapeHtml(state.quizDraft.description)}</textarea>
+      </label>
+      <label class="field">
+        <span>Hedef ogrenci grubu</span>
+        <select name="audience">
+          ${audienceOptions.map((option) => `<option value="${option.value}" ${option.value === state.quizDraft.audience ? "selected" : ""}>${option.label}</option>`).join("")}
+        </select>
+      </label>
+      ${showSelection ? `
+        <div class="field">
+          <span>Ogrenci secimi</span>
+          <div class="check-grid">
+            ${students.length ? students.map((student) => `
+              <label class="check-item">
+                <input type="checkbox" name="targetStudentIds" value="${escapeHtml(student.id)}" ${state.quizDraft.targetStudentIds.includes(student.id) ? "checked" : ""}>
+                <span>${escapeHtml(student.name)} • ${escapeHtml(student.className || "-")}</span>
+              </label>
+            `).join("") : `<div class="empty-state">Secilebilecek ogrenci yok.</div>`}
+          </div>
+        </div>
+      ` : `
+        <div class="gate-card">
+          <p>${students.length ? `${students.length} ogrenci secilen hedef gruba otomatik dahil edilecek.` : "Henuz quiz atanabilecek ogrenci yok."}</p>
+        </div>
+      `}
+      <div class="quiz-editor-grid">
+        ${state.quizDraft.questions.map((question, index) => `
+          <article class="question-editor-card">
+            <div class="question-editor-head">
+              <h3>Soru ${index + 1}</h3>
+              ${state.quizDraft.questions.length > 1 ? `<button class="button button-secondary" type="button" data-remove-question="${index}">Soruyu kaldir</button>` : ""}
+            </div>
+            <label class="field">
+              <span>Soru metni</span>
+              <input type="text" data-question-prompt="${index}" value="${escapeHtml(question.prompt)}" placeholder="Soru metni">
+            </label>
+            ${question.options.map((option, optionIndex) => `
+              <label class="field">
+                <span>Secenek ${optionIndex + 1}</span>
+                <input type="text" data-question-option="${index}:${optionIndex}" value="${escapeHtml(option)}" placeholder="Secenek">
+              </label>
+            `).join("")}
+            <label class="field">
+              <span>Dogru secenek</span>
+              <select data-question-correct="${index}">
+                ${[0, 1, 2, 3].map((optionIndex) => `<option value="${optionIndex}" ${question.correctIndex === optionIndex ? "selected" : ""}>Secenek ${optionIndex + 1}</option>`).join("")}
+              </select>
+            </label>
+            <label class="field">
+              <span>Aciklama notu</span>
+              <textarea data-question-explanation="${index}" class="message-textarea" placeholder="Istege bagli aciklama">${escapeHtml(question.explanation)}</textarea>
+            </label>
+          </article>
+        `).join("")}
+      </div>
+      <div class="inline-actions">
+        <button class="button button-secondary" type="button" id="quiz-add-question">Soru ekle</button>
+        <button class="button button-primary" type="submit">Quizi yayinla</button>
+      </div>
+      <p class="auth-message" id="quiz-builder-message" aria-live="polite"></p>
+    </form>
+  `;
+}
+
+function renderStaffQuizList(snapshot) {
+  const host = document.getElementById("staff-quiz-list");
+  if (!host) return;
+
+  const statsById = buildQuizStatsById(snapshot);
+  if (!(snapshot.quizzes || []).length) {
+    host.innerHTML = `<div class="empty-state">Henuz quiz olusturulmedi.</div>`;
+    return;
+  }
+
+  host.innerHTML = (snapshot.quizzes || []).map((quiz) => {
+    const stats = statsById.get(quiz.id);
+    const lastAttempt = getLatestDate(stats?.attempts || [], "createdAt");
+    return `
+      <article class="project-card">
+        <div class="project-head">
+          <div>
+            <h3>${escapeHtml(quiz.title)}</h3>
+            <p>${escapeHtml(quiz.audienceLabel || "-")} • ${quiz.questionCount} soru • ${formatDate(quiz.createdAt)}</p>
+          </div>
+          <span class="status-pill">${stats?.attempts.length || 0} sonuc</span>
+        </div>
+        ${quiz.description ? `<p>${renderRichText(quiz.description)}</p>` : `<p class="muted-text">Aciklama eklenmedi.</p>`}
+        <div class="summary-metrics">
+          <span>Hedef ogrenci: ${(quiz.accessibleUserIds || []).length}</span>
+          <span>Ortalama: ${stats?.averageScore || 0}</span>
+          <span>${lastAttempt ? `Son teslim: ${formatDate(lastAttempt)}` : "Sonuc yok"}</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderStaffQuizResults(snapshot) {
+  const host = document.getElementById("staff-quiz-results");
+  if (!host) return;
+
+  const attempts = snapshot.attempts || [];
+  if (!attempts.length) {
+    host.innerHTML = `<div class="empty-state">Henuz quiz sonucu kaydedilmedi.</div>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="table-wrap">
+      <table class="attempt-table">
+        <thead>
+          <tr><th>Quiz</th><th>Ogrenci</th><th>Sinif</th><th>Puan</th><th>Dogru</th><th>Tarih</th></tr>
+        </thead>
+        <tbody>
+          ${attempts.map((attempt) => `
+            <tr>
+              <td>${escapeHtml(attempt.quizTitle || "-")}</td>
+              <td>${escapeHtml(attempt.studentName || "-")}</td>
+              <td>${escapeHtml(attempt.className || "-")}</td>
+              <td>${attempt.score}</td>
+              <td>${attempt.correctCount}/${attempt.total}</td>
+              <td>${formatDate(attempt.createdAt)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderMessageThread(messages, viewerRole) {
+  if (!messages.length) {
+    return `<div class="empty-state">Henuz mesaj yok.</div>`;
+  }
+
+  return `
+    <div class="chat-thread">
+      ${messages.map((message) => {
+        const ownRoles = viewerRole === "student" ? ["student"] : ["teacher", "admin"];
+        const isOwn = ownRoles.includes(message.senderRole);
+        return `
+          <article class="chat-bubble ${isOwn ? "chat-bubble-self" : "chat-bubble-other"}">
+            <div class="chat-meta">
+              <strong>${escapeHtml(message.senderName)}</strong>
+              <span>${escapeHtml(roleLabel(message.senderRole))} • ${formatDate(message.createdAt)}</span>
+            </div>
+            <p>${renderRichText(message.text)}</p>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderProjectCards(projects, viewerRole) {
+  if (!projects.length) {
+    return `<div class="empty-state">Henuz proje dosyasi yuklenmedi.</div>`;
+  }
+
+  return `
+    <div class="project-list">
+      ${projects.map((project) => `
+        <article class="project-card">
+          <div class="project-head">
+            <div>
+              <h3>${escapeHtml(project.title || project.driveFileName || "Proje dosyasi")}</h3>
+              <p>${formatDate(project.uploadedAt)} • ${escapeHtml(project.driveFileName || "Dosya adi yok")} • ${escapeHtml(formatFileSize(project.size))}</p>
+            </div>
+            ${project.driveFileUrl ? `<a class="button button-secondary" href="${escapeHtml(project.driveFileUrl)}" target="_blank" rel="noopener noreferrer">Dosyayi ac</a>` : `<span class="status-pill">Kayit olustu</span>`}
+          </div>
+          ${project.description ? `<p>${renderRichText(project.description)}</p>` : `<p class="muted-text">Aciklama eklenmedi.</p>`}
+          <div class="review-block">
+            <h4>Ogretmen degerlendirmesi</h4>
+            ${viewerRole === "student" ? (
+              project.reviewText
+                ? `<div class="review-display">${renderRichText(project.reviewText)}</div>
+                   <p class="muted-text">${project.reviewUpdatedAt ? `Son guncelleme: ${formatDate(project.reviewUpdatedAt)}` : ""}</p>`
+                : `<div class="empty-state">Henuz degerlendirme eklenmedi.</div>`
+            ) : `
+              <textarea class="review-textarea" data-review-input="${escapeHtml(project.id)}" placeholder="Degerlendirme yazin">${escapeHtml(project.reviewText || "")}</textarea>
+              <div class="inline-actions">
+                <button class="button button-primary" type="button" data-save-review-button="${escapeHtml(project.id)}">Kaydet</button>
+                <span class="inline-note" data-review-status="${escapeHtml(project.id)}">${project.reviewUpdatedAt ? `Son guncelleme: ${formatDate(project.reviewUpdatedAt)}` : ""}</span>
+              </div>
+            `}
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderStudentProjectPage(snapshot) {
+  const statsHost = document.getElementById("student-project-stats");
+  const overviewHost = document.getElementById("student-project-overview");
+  const uploadHost = document.getElementById("student-project-upload");
+  const projectHost = document.getElementById("student-project-list");
+  const messageHost = document.getElementById("student-message-thread");
+  const uploadConfig = getGoogleDriveUploadConfig();
+
+  if (statsHost) {
+    statsHost.innerHTML = `
+      <article class="stat-card"><span>Atanan ogretmen</span><strong>${snapshot.teacher ? escapeHtml(snapshot.teacher.name) : "-"}</strong></article>
+      <article class="stat-card"><span>Yuklenen proje</span><strong>${(snapshot.projects || []).length}</strong></article>
+      <article class="stat-card"><span>Mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
+      <article class="stat-card"><span>Quiz sonucu</span><strong>${(snapshot.attempts || []).length}</strong></article>
+    `;
+  }
+
+  if (overviewHost) {
+    overviewHost.innerHTML = snapshot.teacher
+      ? `
+        <div class="summary-card-grid">
+          <article class="summary-card">
+            <h3>${escapeHtml(snapshot.teacher.name)}</h3>
+            <p>${escapeHtml(snapshot.teacher.email || "-")} • ${escapeHtml(snapshot.teacher.className || "BILSEM")}</p>
+            <div class="summary-metrics">
+              <span>${(snapshot.projects || []).length} proje</span>
+              <span>${(snapshot.messages || []).length} mesaj</span>
+              <span>${(snapshot.quizzes || []).length} quiz</span>
+            </div>
+          </article>
+        </div>
+      `
+      : `<div class="gate-card"><h2>Ogretmen atamasi bekleniyor</h2><p>Atama tamamlanmadan proje ve mesajlasma alani aktif edilmez.</p></div>`;
+  }
+
+  if (uploadHost) {
+    uploadHost.innerHTML = !snapshot.teacher
+      ? `<div class="empty-state">Once admin tarafinda bir ogretmen atamasi yapilmalidir.</div>`
+      : isGoogleDriveUploadConfigured()
+        ? `
+          <div class="project-upload-card">
+            <p>Dosyalar <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune yuklenir ve portala kaydedilir.</p>
+            <div class="inline-actions">
+              <button class="button button-primary" type="button" id="student-drive-upload-button">Proje dosyasi yukle</button>
+            </div>
+            <p class="auth-message" id="student-project-message" aria-live="polite"></p>
+          </div>
+        `
+        : `<div class="empty-state">Drive yukleme koprusu henuz tanimli degil.</div>`;
+  }
+
+  if (projectHost) {
+    projectHost.innerHTML = renderProjectCards(snapshot.projects || [], "student");
+  }
+
+  if (messageHost) {
+    messageHost.innerHTML = snapshot.teacher
+      ? `
+        ${renderMessageThread(snapshot.messages || [], "student")}
+        <form id="student-message-form" class="message-form">
+          <label class="field">
+            <span>Ogretmene mesaj</span>
+            <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
+          </label>
+          <div class="inline-actions">
+            <button class="button button-primary" type="submit">Mesaj gonder</button>
+          </div>
+          <p class="auth-message" id="student-message-status" aria-live="polite"></p>
+        </form>
+      `
+      : `<div class="empty-state">Ogretmen atamasi sonrasinda mesajlasma aktif olur.</div>`;
+  }
+
+  bindStudentProjectActions();
+}
+
+function buildProjectWorkspaceRows(snapshot) {
+  const projectMap = new Map();
+  const messageMap = new Map();
+
+  (snapshot.projects || []).forEach((project) => {
+    const items = projectMap.get(project.userId) || [];
+    items.push(project);
+    projectMap.set(project.userId, items.sort((left, right) => new Date(right.uploadedAt) - new Date(left.uploadedAt)));
+  });
+
+  (snapshot.messages || []).forEach((message) => {
+    const items = messageMap.get(message.studentId) || [];
+    items.push(message);
+    messageMap.set(message.studentId, items.sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt)));
+  });
+
+  return (snapshot.students || []).map((student) => ({
+    student,
+    projects: projectMap.get(student.id) || [],
+    messages: messageMap.get(student.id) || []
+  }));
+}
+
+function renderStaffProjectPage(snapshot) {
+  const statsHost = document.getElementById("project-staff-stats");
+  const workspaceHost = document.getElementById("project-staff-workspace");
+
+  if (statsHost) {
+    const reviewedCount = (snapshot.projects || []).filter((project) => project.reviewText).length;
+    statsHost.innerHTML = `
+      <article class="stat-card"><span>Gorunen ogrenci</span><strong>${(snapshot.students || []).length}</strong></article>
+      <article class="stat-card"><span>Yuklenen proje</span><strong>${(snapshot.projects || []).length}</strong></article>
+      <article class="stat-card"><span>Degerlendirilen</span><strong>${reviewedCount}</strong></article>
+      <article class="stat-card"><span>Toplam mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
+    `;
+  }
+
+  if (!workspaceHost) return;
+
+  const rows = buildProjectWorkspaceRows(snapshot);
+  if (!rows.length) {
+    workspaceHost.innerHTML = `<div class="empty-state">Henuz gorunur ogrenci bulunmuyor.</div>`;
+    return;
+  }
+
+  workspaceHost.innerHTML = rows.map(({ student, projects, messages }) => `
+    <details class="attempt-card teacher-student-card">
+      <summary>
+        <span>${escapeHtml(student.name)} • ${escapeHtml(student.className || "-")}</span>
+        <strong>${projects.length} proje</strong>
+        <span>${messages.length} mesaj</span>
+      </summary>
+      <div class="teacher-student-content">
+        <section class="teacher-student-column">
+          <div class="student-mini-meta">
+            <span class="status-pill">${escapeHtml(student.email || "-")}</span>
+            <span class="status-pill">${student.assignedTeacherName ? escapeHtml(student.assignedTeacherName) : "Atama yok"}</span>
+          </div>
+          ${renderProjectCards(projects, "staff")}
+        </section>
+        <section class="teacher-student-column">
+          <h3>Mesajlasma</h3>
+          ${renderMessageThread(messages, "staff")}
+          <form class="message-form" data-teacher-message-form="${escapeHtml(student.id)}">
+            <label class="field">
+              <span>${escapeHtml(student.name)} icin mesaj</span>
+              <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
+            </label>
+            <div class="inline-actions">
+              <button class="button button-primary" type="submit">Mesaj gonder</button>
+            </div>
+            <p class="auth-message" data-message-status aria-live="polite"></p>
+          </form>
+        </section>
+      </div>
+    </details>
+  `).join("");
+
+  bindStaffProjectActions();
+}
+
+async function loadStudentWorkspace(callback, onError) {
+  if (state.studentWorkspaceUnsubscribe) {
+    state.studentWorkspaceUnsubscribe();
+    state.studentWorkspaceUnsubscribe = null;
+  }
+
+  try {
+    state.studentWorkspace = await state.dataLayer.getStudentWorkspace(state.currentUser.id);
+    callback(state.studentWorkspace);
+  } catch (error) {
+    onError?.(error);
+  }
+
+  state.studentWorkspaceUnsubscribe = state.dataLayer.subscribeStudentWorkspace(
+    state.currentUser.id,
+    (snapshot) => {
+      state.studentWorkspace = snapshot;
+      callback(snapshot);
+    },
+    (error) => onError?.(error)
+  );
+}
+
+async function loadManagementSnapshot(callback, onError) {
+  if (state.managementSnapshotUnsubscribe) {
+    state.managementSnapshotUnsubscribe();
+    state.managementSnapshotUnsubscribe = null;
+  }
+
+  try {
+    state.managementSnapshot = await state.dataLayer.getManagementSnapshot(state.currentUser);
+    callback(state.managementSnapshot);
+  } catch (error) {
+    onError?.(error);
+  }
+
+  state.managementSnapshotUnsubscribe = state.dataLayer.subscribeManagementSnapshot(
+    state.currentUser,
+    (snapshot) => {
+      state.managementSnapshot = snapshot;
+      callback(snapshot);
+    },
+    (error) => onError?.(error)
+  );
+}
+
+function bindLoginPage() {
+  if (!document.querySelector("[data-login-page]")) return;
 
   renderTeacherLoginNote();
 
@@ -1088,16 +965,15 @@ function renderLoginPage() {
   const registerMessage = document.getElementById("register-message");
   const activeSession = document.getElementById("active-session");
 
-  if (state.currentUser) {
-    const nextLink = state.currentUser.role === "teacher" ? "ogretmen-paneli.html" : "mini-lab.html";
-    const nextText = state.currentUser.role === "teacher" ? "Ogretmen paneline git" : "Quiz sayfasina git";
+  if (state.currentUser && activeSession) {
     activeSession.innerHTML = `
-      <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong></div>
+      <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong> • ${escapeHtml(roleLabel(state.currentUser.role))}</div>
       <div class="inline-actions">
-        <a class="button button-primary" href="${nextLink}">${nextText}</a>
+        <a class="button button-primary" href="${homePathForUser(state.currentUser)}">${nextStepLabel(state.currentUser)}</a>
         <button class="button button-secondary" type="button" id="login-logout-button">Cikis Yap</button>
       </div>
     `;
+
     const logoutButton = document.getElementById("login-logout-button");
     if (logoutButton) {
       logoutButton.onclick = async () => {
@@ -1105,8 +981,6 @@ function renderLoginPage() {
         window.location.reload();
       };
     }
-  } else {
-    activeSession.innerHTML = "";
   }
 
   if (loginForm && !loginForm.dataset.bound) {
@@ -1117,9 +991,9 @@ function renderLoginPage() {
       const formData = new FormData(loginForm);
       try {
         state.currentUser = await state.dataLayer.loginUser(formData.get("email"), formData.get("password"));
-        window.location.href = state.currentUser.role === "teacher" ? "ogretmen-paneli.html" : "mini-lab.html";
+        window.location.href = homePathForUser(state.currentUser);
       } catch (error) {
-        loginMessage.textContent = friendlyErrorMessage(error) || "Giris yapilamadi.";
+        loginMessage.textContent = friendlyErrorMessage(error);
       }
     });
   }
@@ -1138,7 +1012,7 @@ function renderLoginPage() {
       };
 
       if (!payload.name || !payload.className || !payload.email || !payload.password) {
-        registerMessage.textContent = "Lutfen tum alanlari doldur.";
+        registerMessage.textContent = "Lutfen tum alanlari doldurun.";
         return;
       }
 
@@ -1148,271 +1022,704 @@ function renderLoginPage() {
       }
 
       if (!isFirebaseModeConfigured() && payload.password.length < 4) {
-        registerMessage.textContent = "Sifre en az 4 karakter olmali.";
+        registerMessage.textContent = "Yerel modda sifre en az 4 karakter olmali.";
         return;
       }
 
       try {
         state.currentUser = await state.dataLayer.registerUser(payload);
-        window.location.href = "mini-lab.html";
+        window.location.href = homePathForUser(state.currentUser);
       } catch (error) {
-        registerMessage.textContent = friendlyErrorMessage(error) || "Kayit yapilamadi.";
+        registerMessage.textContent = friendlyErrorMessage(error);
+      }
+    });
+  }
+}
+
+function bindStudentQuizActions() {
+  const host = document.getElementById("student-quiz-list");
+  if (!host || host.dataset.bound) return;
+  host.dataset.bound = "true";
+
+  host.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-student-quiz-form]");
+    if (!form) return;
+    event.preventDefault();
+
+    const quizId = form.getAttribute("data-student-quiz-form");
+    const status = form.querySelector("[data-quiz-status]");
+    const quiz = (state.studentWorkspace?.quizzes || []).find((item) => item.id === quizId);
+    if (!quiz) return;
+
+    const formData = new FormData(form);
+    const answeredCount = (quiz.questions || []).filter((_, index) => formData.get(`quiz-${quiz.id}-q-${index}`) !== null).length;
+    if (answeredCount !== (quiz.questions || []).length) {
+      if (status) status.textContent = "Lutfen tum sorulari cevaplayin.";
+      return;
+    }
+
+    if (status) status.textContent = "Kaydediliyor...";
+
+    try {
+      const result = evaluateQuiz(quiz, formData);
+      await state.dataLayer.saveAttempt(state.currentUser, quiz, result);
+      if (status) status.textContent = `${result.score} puan ile kaydedildi.`;
+      await loadStudentWorkspace((snapshot) => {
+        renderStudentQuizStats(snapshot);
+        renderStudentQuizOverview(snapshot);
+        renderStudentQuizList(snapshot);
+        renderStudentAttempts(snapshot.attempts || []);
+      });
+    } catch (error) {
+      if (status) status.textContent = friendlyErrorMessage(error);
+    }
+  });
+}
+
+function bindQuizBuilder() {
+  const host = document.getElementById("quiz-builder-shell");
+  if (!host || host.dataset.bound) return;
+  host.dataset.bound = "true";
+
+  host.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    if (target.matches('input[name="title"]')) {
+      state.quizDraft.title = target.value;
+    } else if (target.matches('textarea[name="description"]')) {
+      state.quizDraft.description = target.value;
+    } else if (target.hasAttribute("data-question-prompt")) {
+      const index = Number.parseInt(target.getAttribute("data-question-prompt"), 10);
+      state.quizDraft.questions[index].prompt = target.value;
+    } else if (target.hasAttribute("data-question-option")) {
+      const [questionIndex, optionIndex] = String(target.getAttribute("data-question-option")).split(":").map((value) => Number.parseInt(value, 10));
+      state.quizDraft.questions[questionIndex].options[optionIndex] = target.value;
+    } else if (target.hasAttribute("data-question-explanation")) {
+      const index = Number.parseInt(target.getAttribute("data-question-explanation"), 10);
+      state.quizDraft.questions[index].explanation = target.value;
+    }
+  });
+
+  host.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    if (target.matches('select[name="audience"]')) {
+      state.quizDraft.audience = target.value;
+      renderQuizBuilder(state.managementSnapshot);
+      return;
+    }
+
+    if (target.hasAttribute("data-question-correct")) {
+      const index = Number.parseInt(target.getAttribute("data-question-correct"), 10);
+      state.quizDraft.questions[index].correctIndex = Number.parseInt(target.value, 10);
+      return;
+    }
+
+    if (target.matches('input[name="targetStudentIds"]')) {
+      const checked = host.querySelectorAll('input[name="targetStudentIds"]:checked');
+      state.quizDraft.targetStudentIds = [...checked].map((item) => item.value);
+    }
+  });
+
+  host.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+
+    if (button.id === "quiz-add-question") {
+      state.quizDraft.questions.push(createEmptyQuestion());
+      renderQuizBuilder(state.managementSnapshot);
+      return;
+    }
+
+    const removeIndex = button.getAttribute("data-remove-question");
+    if (removeIndex !== null) {
+      state.quizDraft.questions.splice(Number.parseInt(removeIndex, 10), 1);
+      renderQuizBuilder(state.managementSnapshot);
+    }
+  });
+
+  host.addEventListener("submit", async (event) => {
+    const form = event.target.closest("#quiz-builder-form");
+    if (!form) return;
+    event.preventDefault();
+
+    const message = document.getElementById("quiz-builder-message");
+    const students = getAvailableQuizStudents(state.managementSnapshot);
+    const accessibleUserIds = state.quizDraft.audience === "selected_students"
+      ? state.quizDraft.targetStudentIds
+      : students.map((student) => student.id);
+    const audienceLabel = state.quizDraft.audience === "selected_students"
+      ? `${accessibleUserIds.length} secili ogrenci`
+      : isAdminRole(state.currentUser.role) ? "Tum ogrenciler" : "Atanmis tum ogrenciler";
+
+    if (message) message.textContent = "Kaydediliyor...";
+
+    try {
+      await state.dataLayer.saveQuiz(state.currentUser, {
+        title: state.quizDraft.title,
+        description: state.quizDraft.description,
+        audienceLabel,
+        accessibleUserIds,
+        questions: state.quizDraft.questions
+      });
+      state.quizDraft = createEmptyQuizDraft();
+      if (!isAdminRole(state.currentUser.role)) {
+        state.quizDraft.audience = "all_assigned";
+      }
+      await loadManagementSnapshot((snapshot) => {
+        renderStaffQuizStats(snapshot);
+        renderQuizBuilder(snapshot);
+        renderStaffQuizList(snapshot);
+        renderStaffQuizResults(snapshot);
+      });
+      const refreshedMessage = document.getElementById("quiz-builder-message");
+      if (refreshedMessage) refreshedMessage.textContent = "Quiz basariyla yayina alindi.";
+    } catch (error) {
+      if (message) message.textContent = friendlyErrorMessage(error);
+    }
+  });
+}
+
+function bindStudentProjectActions() {
+  const uploadButton = document.getElementById("student-drive-upload-button");
+  const uploadMessage = document.getElementById("student-project-message");
+  const messageForm = document.getElementById("student-message-form");
+  const messageStatus = document.getElementById("student-message-status");
+
+  if (uploadButton && !uploadButton.dataset.bound) {
+    uploadButton.dataset.bound = "true";
+    uploadButton.addEventListener("click", async () => {
+      uploadButton.disabled = true;
+      if (uploadMessage) uploadMessage.textContent = "Yukleme penceresi aciliyor...";
+      try {
+        const projectPayload = await openDriveUploadPopup();
+        if (uploadMessage) uploadMessage.textContent = "Drive kaydi olusturuluyor...";
+        await state.dataLayer.saveProjectRecord(state.currentUser, projectPayload);
+        await loadStudentWorkspace(renderStudentProjectPage);
+        if (uploadMessage) uploadMessage.textContent = "Proje basariyla kaydedildi.";
+      } catch (error) {
+        if (uploadMessage) uploadMessage.textContent = friendlyErrorMessage(error);
+      } finally {
+        uploadButton.disabled = false;
+      }
+    });
+  }
+
+  if (messageForm && !messageForm.dataset.bound) {
+    messageForm.dataset.bound = "true";
+    messageForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(messageForm);
+      const text = String(formData.get("text") || "").trim();
+      if (!text) {
+        if (messageStatus) messageStatus.textContent = "Mesaj bos olamaz.";
+        return;
+      }
+
+      if (messageStatus) messageStatus.textContent = "Gonderiliyor...";
+      try {
+        await state.dataLayer.sendMessage({
+          studentId: state.currentUser.id,
+          text,
+          sender: state.currentUser
+        });
+        messageForm.reset();
+        await loadStudentWorkspace(renderStudentProjectPage);
+      } catch (error) {
+        if (messageStatus) messageStatus.textContent = friendlyErrorMessage(error);
+      }
+    });
+  }
+}
+
+function bindStaffProjectActions() {
+  const host = document.getElementById("project-staff-workspace");
+  if (!host || host.dataset.bound) return;
+  host.dataset.bound = "true";
+
+  host.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-save-review-button]");
+    if (!button) return;
+
+    const projectId = button.getAttribute("data-save-review-button");
+    const input = host.querySelector(`[data-review-input="${projectId}"]`);
+    const status = host.querySelector(`[data-review-status="${projectId}"]`);
+    button.disabled = true;
+    if (status) status.textContent = "Kaydediliyor...";
+
+    try {
+      await state.dataLayer.saveProjectReview(projectId, input?.value || "", state.currentUser);
+      await loadManagementSnapshot(renderStaffProjectPage);
+      const refreshedStatus = host.querySelector(`[data-review-status="${projectId}"]`);
+      if (refreshedStatus) refreshedStatus.textContent = "Kaydedildi.";
+    } catch (error) {
+      if (status) status.textContent = friendlyErrorMessage(error);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  host.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-teacher-message-form]");
+    if (!form) return;
+    event.preventDefault();
+
+    const studentId = form.getAttribute("data-teacher-message-form");
+    const status = form.querySelector("[data-message-status]");
+    const formData = new FormData(form);
+    const text = String(formData.get("text") || "").trim();
+
+    if (!text) {
+      if (status) status.textContent = "Mesaj bos olamaz.";
+      return;
+    }
+
+    if (status) status.textContent = "Gonderiliyor...";
+
+    try {
+      await state.dataLayer.sendMessage({
+        studentId,
+        text,
+        sender: state.currentUser
+      });
+      form.reset();
+      await loadManagementSnapshot(renderStaffProjectPage);
+    } catch (error) {
+      if (status) status.textContent = friendlyErrorMessage(error);
+    }
+  });
+}
+
+function getFilteredStudents(snapshot) {
+  const search = normalizeText(state.teacherFilters.search);
+  const className = state.teacherFilters.className;
+
+  return [...(snapshot.students || [])].filter((student) => {
+    const matchesClass = className === "all" || normalizeText(student.className) === normalizeText(className);
+    if (!matchesClass) return false;
+    if (!search) return true;
+    const haystack = [student.name, student.className, student.email].map(normalizeText).join(" ");
+    return haystack.includes(search);
+  });
+}
+
+function buildStudentManagementRows(snapshot) {
+  const students = getFilteredStudents(snapshot);
+  const studentIds = new Set(students.map((student) => student.id));
+
+  const attemptMap = new Map();
+  (snapshot.attempts || []).filter((attempt) => studentIds.has(attempt.userId)).forEach((attempt) => {
+    const list = attemptMap.get(attempt.userId) || [];
+    list.push(attempt);
+    attemptMap.set(attempt.userId, list);
+  });
+
+  const projectMap = new Map();
+  (snapshot.projects || []).filter((project) => studentIds.has(project.userId)).forEach((project) => {
+    const list = projectMap.get(project.userId) || [];
+    list.push(project);
+    projectMap.set(project.userId, list);
+  });
+
+  const messageMap = new Map();
+  (snapshot.messages || []).filter((message) => studentIds.has(message.studentId)).forEach((message) => {
+    const list = messageMap.get(message.studentId) || [];
+    list.push(message);
+    messageMap.set(message.studentId, list);
+  });
+
+  return students.map((student) => {
+    const attempts = (attemptMap.get(student.id) || []).sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+    const projects = (projectMap.get(student.id) || []).sort((left, right) => new Date(right.uploadedAt) - new Date(left.uploadedAt));
+    const messages = (messageMap.get(student.id) || []).sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+    const averageScore = attempts.length ? Math.round(attempts.reduce((sum, item) => sum + item.score, 0) / attempts.length) : 0;
+    const latestActivityAt = getLatestDate([...attempts, ...projects.map((project) => ({ createdAt: project.uploadedAt })), ...messages], "createdAt");
+    return { student, attempts, projects, messages, averageScore, latestActivityAt };
+  }).sort((left, right) => {
+    if (state.teacherFilters.sort === "name_asc") {
+      return left.student.name.localeCompare(right.student.name, "tr");
+    }
+    if (state.teacherFilters.sort === "score_desc") {
+      return right.averageScore - left.averageScore;
+    }
+    if (state.teacherFilters.sort === "score_asc") {
+      return left.averageScore - right.averageScore;
+    }
+    return new Date(right.latestActivityAt || 0) - new Date(left.latestActivityAt || 0);
+  });
+}
+
+function renderManagementDashboard(snapshot) {
+  state.managementSnapshot = snapshot;
+  const rows = buildStudentManagementRows(snapshot);
+  const attempts = rows.flatMap((row) => row.attempts);
+  const projects = rows.flatMap((row) => row.projects);
+  const messages = rows.flatMap((row) => row.messages);
+  const averageScore = attempts.length ? Math.round(attempts.reduce((sum, attempt) => sum + attempt.score, 0) / attempts.length) : 0;
+
+  document.getElementById("teacher-stats").innerHTML = `
+    <article class="stat-card"><span>Gorunen ogrenci</span><strong>${rows.length}</strong></article>
+    <article class="stat-card"><span>Quiz</span><strong>${(snapshot.quizzes || []).length}</strong></article>
+    <article class="stat-card"><span>Quiz sonucu</span><strong>${attempts.length}</strong></article>
+    <article class="stat-card"><span>Proje</span><strong>${projects.length}</strong></article>
+    <article class="stat-card"><span>Mesaj</span><strong>${messages.length}</strong></article>
+    <article class="stat-card"><span>Ortalama puan</span><strong>${averageScore}</strong></article>
+  `;
+
+  const classFilter = document.getElementById("teacher-class-filter");
+  const classNames = [...new Set((snapshot.students || []).map((student) => student.className).filter(Boolean))].sort((left, right) => left.localeCompare(right, "tr"));
+  if (classFilter) {
+    classFilter.innerHTML = `<option value="all">Tum siniflar</option>${classNames.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}`;
+    classFilter.value = classNames.includes(state.teacherFilters.className) ? state.teacherFilters.className : "all";
+  }
+
+  const summaryHost = document.getElementById("teacher-filter-summary");
+  if (summaryHost) {
+    summaryHost.textContent = `${rows.length} ogrenci • ${attempts.length} quiz sonucu • ${projects.length} proje • ${messages.length} mesaj`;
+  }
+
+  const directoryHost = document.getElementById("teacher-directory");
+  if (directoryHost) {
+    directoryHost.innerHTML = (snapshot.teachers || []).length
+      ? `
+        <div class="summary-card-grid">
+          ${(snapshot.teachers || []).map((teacher) => {
+            const assignedCount = (snapshot.students || []).filter((student) => student.assignedTeacherId === teacher.id).length;
+            return `
+              <article class="summary-card">
+                <h3>${escapeHtml(teacher.name)}</h3>
+                <p>${escapeHtml(roleLabel(teacher.role))} • ${escapeHtml(teacher.email || "-")}</p>
+                <div class="summary-metrics">
+                  <span>${assignedCount} ogrenci</span>
+                  <span>${escapeHtml(roleDescription(teacher.role))}</span>
+                </div>
+              </article>
+            `;
+          }).join("")}
+        </div>
+      `
+      : `<div class="empty-state">Goruntulenecek ogretmen yok.</div>`;
+  }
+
+  const summaryCardsHost = document.getElementById("teacher-student-summary");
+  if (summaryCardsHost) {
+    summaryCardsHost.innerHTML = rows.length
+      ? rows.map((row) => `
+        <article class="summary-card">
+          <h3>${escapeHtml(row.student.name)}</h3>
+          <p>${escapeHtml(row.student.className || "-")} • ${escapeHtml(row.student.email || "-")}</p>
+          <div class="summary-metrics">
+            <span>${row.attempts.length} sonuc</span>
+            <span>${row.projects.length} proje</span>
+            <span>${row.messages.length} mesaj</span>
+            <span>Ort. ${row.averageScore}</span>
+          </div>
+        </article>
+      `).join("")
+      : `<div class="empty-state">Filtrelerde ogrenci bulunamadi.</div>`;
+  }
+
+  const tableHost = document.getElementById("teacher-table");
+  if (tableHost) {
+    tableHost.innerHTML = attempts.length
+      ? `
+        <div class="table-wrap">
+          <table class="attempt-table">
+            <thead><tr><th>Quiz</th><th>Ogrenci</th><th>Sinif</th><th>Puan</th><th>Dogru</th><th>Tarih</th></tr></thead>
+            <tbody>
+              ${attempts.map((attempt) => `
+                <tr>
+                  <td>${escapeHtml(attempt.quizTitle || "-")}</td>
+                  <td>${escapeHtml(attempt.studentName || "-")}</td>
+                  <td>${escapeHtml(attempt.className || "-")}</td>
+                  <td>${attempt.score}</td>
+                  <td>${attempt.correctCount}/${attempt.total}</td>
+                  <td>${formatDate(attempt.createdAt)}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `
+      : `<div class="empty-state">Filtrelerde quiz sonucu bulunamadi.</div>`;
+  }
+
+  const analysisHost = document.getElementById("teacher-question-analysis");
+  if (analysisHost) {
+    const reviewedCount = projects.filter((project) => project.reviewText).length;
+    analysisHost.innerHTML = `
+      <div class="summary-card-grid">
+        <article class="summary-card"><h3>Quiz dagilimi</h3><p>${(snapshot.quizzes || []).length} quiz • ${attempts.length} sonuc</p></article>
+        <article class="summary-card"><h3>Proje durumu</h3><p>${projects.length} proje • ${reviewedCount} degerlendirme</p></article>
+        <article class="summary-card"><h3>Mesaj trafigi</h3><p>${messages.length} mesaj • ${rows.filter((row) => row.messages.length).length} aktif thread</p></article>
+      </div>
+    `;
+  }
+
+  const detailHost = document.getElementById("teacher-details");
+  if (detailHost) {
+    detailHost.innerHTML = rows.length
+      ? rows.map((row) => `
+        <details class="attempt-card">
+          <summary>
+            <span>${escapeHtml(row.student.name)} • ${escapeHtml(row.student.className || "-")}</span>
+            <strong>${row.projects.length} proje</strong>
+            <span>${row.messages.length} mesaj • Ort. ${row.averageScore}</span>
+          </summary>
+          <div class="summary-card-grid detail-grid">
+            <article class="summary-card"><h3>Atama</h3><p>${row.student.assignedTeacherName ? escapeHtml(row.student.assignedTeacherName) : "Atama yok"}</p></article>
+            <article class="summary-card"><h3>Son quiz</h3><p>${row.attempts[0] ? `${escapeHtml(row.attempts[0].quizTitle || "-")} • ${row.attempts[0].score} puan` : "Kayit yok"}</p></article>
+            <article class="summary-card"><h3>Son proje</h3><p>${row.projects[0] ? `${escapeHtml(row.projects[0].title || row.projects[0].driveFileName || "-")} • ${formatDate(row.projects[0].uploadedAt)}` : "Kayit yok"}</p></article>
+            <article class="summary-card"><h3>Son mesaj</h3><p>${row.messages[0] ? `${escapeHtml(row.messages[0].senderName)} • ${formatDate(row.messages[0].createdAt)}` : "Kayit yok"}</p></article>
+          </div>
+        </details>
+      `).join("")
+      : `<div class="empty-state">Detay gosterilecek ogrenci bulunamadi.</div>`;
+  }
+
+  const adminSection = document.getElementById("admin-assignment-section");
+  if (adminSection) adminSection.hidden = !isAdminRole(state.currentUser.role);
+
+  const assignmentHost = document.getElementById("assignment-board");
+  if (assignmentHost && isAdminRole(state.currentUser.role)) {
+    assignmentHost.innerHTML = rows.length
+      ? rows.map((row) => `
+        <div class="assignment-row">
+          <div>
+            <strong>${escapeHtml(row.student.name)}</strong>
+            <p>${escapeHtml(row.student.className || "-")} • ${escapeHtml(row.student.email || "-")}</p>
+          </div>
+          <div class="assignment-controls">
+            <select data-assignment-select="${escapeHtml(row.student.id)}">
+              <option value="">Ogretmen sec</option>
+              ${(snapshot.teachers || []).map((teacher) => `<option value="${escapeHtml(teacher.id)}" ${teacher.id === row.student.assignedTeacherId ? "selected" : ""}>${escapeHtml(teacher.name)} (${escapeHtml(roleLabel(teacher.role))})</option>`).join("")}
+            </select>
+            <button class="button button-primary" type="button" data-assignment-save="${escapeHtml(row.student.id)}">Kaydet</button>
+            <span class="inline-note" data-assignment-status="${escapeHtml(row.student.id)}"></span>
+          </div>
+        </div>
+      `).join("")
+      : `<div class="empty-state">Atama yapilacak ogrenci bulunamadi.</div>`;
+  }
+}
+
+function bindTeacherDashboardActions() {
+  const searchInput = document.getElementById("teacher-search");
+  const classFilter = document.getElementById("teacher-class-filter");
+  const sortSelect = document.getElementById("teacher-sort");
+  const resetButton = document.getElementById("teacher-filter-reset");
+  const jsonButton = document.getElementById("download-results");
+  const csvButton = document.getElementById("download-results-csv");
+  const assignmentHost = document.getElementById("assignment-board");
+
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.dataset.bound = "true";
+    searchInput.addEventListener("input", () => {
+      state.teacherFilters.search = searchInput.value;
+      renderManagementDashboard(state.managementSnapshot);
+    });
+  }
+
+  if (classFilter && !classFilter.dataset.bound) {
+    classFilter.dataset.bound = "true";
+    classFilter.addEventListener("change", () => {
+      state.teacherFilters.className = classFilter.value;
+      renderManagementDashboard(state.managementSnapshot);
+    });
+  }
+
+  if (sortSelect && !sortSelect.dataset.bound) {
+    sortSelect.dataset.bound = "true";
+    sortSelect.addEventListener("change", () => {
+      state.teacherFilters.sort = sortSelect.value;
+      renderManagementDashboard(state.managementSnapshot);
+    });
+  }
+
+  if (resetButton && !resetButton.dataset.bound) {
+    resetButton.dataset.bound = "true";
+    resetButton.addEventListener("click", () => {
+      state.teacherFilters = { search: "", className: "all", sort: "date_desc" };
+      if (searchInput) searchInput.value = "";
+      if (sortSelect) sortSelect.value = "date_desc";
+      renderManagementDashboard(state.managementSnapshot);
+    });
+  }
+
+  if (jsonButton && !jsonButton.dataset.bound) {
+    jsonButton.dataset.bound = "true";
+    jsonButton.addEventListener("click", () => {
+      const rows = buildStudentManagementRows(state.managementSnapshot);
+      const attempts = rows.flatMap((row) => row.attempts);
+      const blob = new Blob([JSON.stringify(attempts, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "quiz-sonuclari.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  if (csvButton && !csvButton.dataset.bound) {
+    csvButton.dataset.bound = "true";
+    csvButton.addEventListener("click", () => {
+      const rows = buildStudentManagementRows(state.managementSnapshot);
+      const attempts = rows.flatMap((row) => row.attempts);
+      const header = ["Quiz", "Ogrenci", "Sinif", "Puan", "Dogru", "Yanlis", "Tarih"];
+      const csvRows = attempts.map((attempt) => [attempt.quizTitle, attempt.studentName, attempt.className, attempt.score, attempt.correctCount, attempt.wrongCount, formatDate(attempt.createdAt)]);
+      const csv = [header, ...csvRows].map((row) => row.map(toCsvCell).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "quiz-sonuclari.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  if (assignmentHost && !assignmentHost.dataset.bound) {
+    assignmentHost.dataset.bound = "true";
+    assignmentHost.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-assignment-save]");
+      if (!button) return;
+
+      const studentId = button.getAttribute("data-assignment-save");
+      const select = assignmentHost.querySelector(`[data-assignment-select="${studentId}"]`);
+      const status = assignmentHost.querySelector(`[data-assignment-status="${studentId}"]`);
+
+      button.disabled = true;
+      if (status) status.textContent = "Kaydediliyor...";
+
+      try {
+        await state.dataLayer.saveStudentAssignment(studentId, select?.value || "", state.currentUser);
+        await loadManagementSnapshot(renderManagementDashboard);
+        const refreshedStatus = assignmentHost.querySelector(`[data-assignment-status="${studentId}"]`);
+        if (refreshedStatus) refreshedStatus.textContent = "Atama kaydedildi.";
+      } catch (error) {
+        if (status) status.textContent = friendlyErrorMessage(error);
+      } finally {
+        button.disabled = false;
       }
     });
   }
 }
 
 function renderQuizPage() {
-  if (!document.querySelector("[data-quiz-page]")) {
-    return;
-  }
+  if (!document.querySelector("[data-quiz-page]")) return;
 
   const gate = document.getElementById("quiz-gate");
-  const shell = document.getElementById("quiz-shell");
-  const quizForm = document.getElementById("quiz-form");
-  const quizBody = document.getElementById("quiz-body");
-  const quizMessage = document.getElementById("quiz-message");
-  const quizResult = document.getElementById("quiz-result");
+  const studentShell = document.getElementById("student-quiz-shell");
+  const staffShell = document.getElementById("staff-quiz-shell");
 
   if (!state.currentUser) {
-    gate.innerHTML = `<div class="gate-card"><h2>Quiz icin giris gerekli</h2><p>Ogrencilerin kayit olup giris yapmasi gerekiyor.</p><a class="button button-primary" href="giris.html">Giris ve Kayit</a></div>`;
-    shell.hidden = true;
-    return;
-  }
-
-  if (state.currentUser.role === "teacher") {
-    gate.innerHTML = `<div class="gate-card"><h2>Ogretmen hesabi ile acik</h2><p>Ogretmenler quiz yerine ogrenci sonuc paneli ve proje yonetimi sayfasini kullanir.</p><div class="inline-actions"><a class="button button-primary" href="ogretmen-paneli.html">Ogretmen Paneli</a><a class="button button-secondary" href="proje-yonetimi.html">Proje Yonetimi</a></div></div>`;
-    shell.hidden = true;
+    gate.innerHTML = `<div class="gate-card"><h2>Quiz merkezi icin giris gerekli</h2><p>Oturum acmadan quizlere erisim saglanmaz.</p><a class="button button-primary" href="giris.html">Giris Yap</a></div>`;
     return;
   }
 
   gate.hidden = true;
-  shell.hidden = false;
-  quizBody.innerHTML = renderQuizQuestions();
-  renderStudentAttempts(state.currentUser.id);
 
-  if (quizForm && !quizForm.dataset.bound) {
-    quizForm.dataset.bound = "true";
-    quizForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      quizMessage.textContent = "";
-      const formData = new FormData(quizForm);
-      const answeredCount = QUIZ_QUESTIONS.filter((_, index) => formData.get(`q-${index}`) !== null).length;
-      if (answeredCount !== QUIZ_QUESTIONS.length) {
-        quizMessage.textContent = `Lutfen ${QUIZ_QUESTIONS.length} sorunun tamamini cevapla.`;
-        return;
-      }
-      try {
-        const result = evaluateQuiz(formData);
-        await state.dataLayer.saveAttempt(state.currentUser, result);
-        quizResult.innerHTML = renderQuizResult(result);
-        quizForm.reset();
-        await renderStudentAttempts(state.currentUser.id);
-      } catch (error) {
-        quizMessage.textContent = friendlyErrorMessage(error) || "Quiz kaydedilemedi.";
-      }
+  if (isStaffRole(state.currentUser.role)) {
+    if (studentShell) studentShell.hidden = true;
+    if (staffShell) staffShell.hidden = false;
+    loadManagementSnapshot((snapshot) => {
+      renderStaffQuizStats(snapshot);
+      renderQuizBuilder(snapshot);
+      renderStaffQuizList(snapshot);
+      renderStaffQuizResults(snapshot);
+      bindQuizBuilder();
     });
-  }
-}
-
-async function renderProjectManagementPage() {
-  if (!document.querySelector("[data-project-page]")) {
     return;
   }
 
-  const studentGate = document.getElementById("project-student-gate");
-  const teacherGate = document.getElementById("project-teacher-gate");
+  if (staffShell) staffShell.hidden = true;
+  if (studentShell) studentShell.hidden = false;
+  loadStudentWorkspace((snapshot) => {
+    renderStudentQuizStats(snapshot);
+    renderStudentQuizOverview(snapshot);
+    renderStudentQuizList(snapshot);
+    renderStudentAttempts(snapshot.attempts || []);
+    bindStudentQuizActions();
+  });
+}
+
+function renderProjectManagementPage() {
+  if (!document.querySelector("[data-project-page]")) return;
+
+  const gate = document.getElementById("project-gate");
   const studentShell = document.getElementById("project-student-shell");
-  const teacherShell = document.getElementById("project-teacher-shell");
-  const teacherStats = document.getElementById("project-teacher-stats");
+  const staffShell = document.getElementById("project-staff-shell");
 
   if (!state.currentUser) {
-    const gateMarkup = `<div class="gate-card"><h2>Proje yonetimi icin giris gerekli</h2><p>Ogrenci veya ogretmen hesabi ile giris yapmalisiniz.</p><a class="button button-primary" href="giris.html">Giris Yap</a></div>`;
-    if (studentGate) studentGate.innerHTML = gateMarkup;
-    if (teacherGate) {
-      teacherGate.innerHTML = "";
-      teacherGate.hidden = true;
-    }
+    gate.innerHTML = `<div class="gate-card"><h2>Proje alani icin giris gerekli</h2><p>Ogrenci veya yetkili personel olarak oturum acin.</p><a class="button button-primary" href="giris.html">Giris Yap</a></div>`;
+    return;
+  }
+
+  gate.hidden = true;
+
+  if (isStaffRole(state.currentUser.role)) {
     if (studentShell) studentShell.hidden = true;
-    if (teacherShell) teacherShell.hidden = true;
+    if (staffShell) staffShell.hidden = false;
+    loadManagementSnapshot((snapshot) => {
+      renderStaffProjectPage(snapshot);
+      bindStaffProjectActions();
+    });
     return;
   }
 
-  if (state.currentUser.role === "student") {
-    if (teacherShell) teacherShell.hidden = true;
-    if (teacherGate) teacherGate.hidden = true;
-    if (studentGate) studentGate.hidden = true;
-    if (studentShell) studentShell.hidden = false;
-    startStudentWorkspaceSubscription(state.currentUser.id);
-    return;
-  }
-
-  if (studentShell) studentShell.hidden = true;
-  if (studentGate) studentGate.hidden = true;
-  if (teacherGate) teacherGate.hidden = true;
-  if (teacherShell) teacherShell.hidden = false;
-
-  if (state.teacherSnapshotUnsubscribe) {
-    state.teacherSnapshotUnsubscribe();
-  }
-
-  const renderProjectPageTeacher = (snapshot) => {
-    state.teacherSnapshot = snapshot;
-    if (teacherStats) {
-      const students = snapshot.students || [];
-      const projects = snapshot.projects || [];
-      const messages = snapshot.messages || [];
-      const reviewedCount = projects.filter((project) => project.reviewText).length;
-      teacherStats.innerHTML = `
-        <article class="stat-card"><span>Kayitli ogrenci</span><strong>${students.length}</strong></article>
-        <article class="stat-card"><span>Yuklenen proje</span><strong>${projects.length}</strong></article>
-        <article class="stat-card"><span>Degerlendirilen</span><strong>${reviewedCount}</strong></article>
-        <article class="stat-card"><span>Toplam mesaj</span><strong>${messages.length}</strong></article>
-      `;
-    }
-    bindTeacherWorkspaceActions();
-    renderTeacherProjectWorkspace(snapshot);
-  };
-
-  try {
-    renderProjectPageTeacher(await state.dataLayer.getTeacherSnapshot());
-  } catch (error) {
-    const workspace = document.getElementById("teacher-project-workspace");
-    if (workspace) {
-      workspace.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
-    }
-  }
-
-  state.teacherSnapshotUnsubscribe = state.dataLayer.subscribeTeacherSnapshot(
-    (snapshot) => renderProjectPageTeacher(snapshot),
-    (error) => {
-      const workspace = document.getElementById("teacher-project-workspace");
-      if (workspace) {
-        workspace.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
-      }
-    }
-  );
+  if (staffShell) staffShell.hidden = true;
+  if (studentShell) studentShell.hidden = false;
+  loadStudentWorkspace((snapshot) => {
+    renderStudentProjectPage(snapshot);
+    bindStudentProjectActions();
+  });
 }
 
-function renderTeacherStats(snapshot) {
-  state.teacherSnapshot = snapshot;
-  bindTeacherControls(snapshot);
-  bindTeacherWorkspaceActions();
-
-  const attempts = getFilteredTeacherAttempts(snapshot);
-  const visibleStudents = getFilteredTeacherStudents(snapshot);
-  const visibleStudentIds = new Set(visibleStudents.map((student) => student.id));
-  const projects = (snapshot.projects || []).filter((project) => visibleStudentIds.has(project.userId));
-  const messages = (snapshot.messages || []).filter((message) => visibleStudentIds.has(message.studentId));
-  const totalScore = attempts.reduce((sum, attempt) => sum + attempt.score, 0);
-  const averageScore = attempts.length ? Math.round(totalScore / attempts.length) : 0;
-  const uniqueAttemptStudents = new Set(attempts.map((attempt) => attempt.userId)).size;
-  const projectStudents = new Set(projects.map((project) => project.userId)).size;
-  const messageThreads = new Set(messages.map((message) => message.studentId)).size;
-
-  document.getElementById("teacher-stats").innerHTML = `
-    <article class="stat-card"><span>Kayitli ogrenci</span><strong>${visibleStudents.length}</strong></article>
-    <article class="stat-card"><span>Gorunen quiz</span><strong>${attempts.length}</strong></article>
-    <article class="stat-card"><span>Quiz ogrencisi</span><strong>${uniqueAttemptStudents}</strong></article>
-    <article class="stat-card"><span>Proje kaydi</span><strong>${projects.length}</strong></article>
-    <article class="stat-card"><span>Proje yukleyen</span><strong>${projectStudents}</strong></article>
-    <article class="stat-card"><span>Mesajlasma</span><strong>${messageThreads}</strong></article>
-    <article class="stat-card"><span>Ortalama puan</span><strong>${averageScore}</strong></article>
-  `;
-
-  const tableHost = document.getElementById("teacher-table");
-  const detailHost = document.getElementById("teacher-details");
-  renderTeacherFilterSummary(attempts, snapshot);
-  renderTeacherInsights(attempts);
-  renderTeacherProjectWorkspace(snapshot);
-
-  if (!attempts.length) {
-    tableHost.innerHTML = `<div class="empty-state">Secili filtrelerde quiz sonucu bulunamadi.</div>`;
-    detailHost.innerHTML = "";
-    return;
-  }
-
-  tableHost.innerHTML = `
-    <div class="table-wrap">
-      <table class="attempt-table">
-        <thead><tr><th>Ogrenci</th><th>Sinif</th><th>Dogru</th><th>Yanlis</th><th>Puan</th><th>Tarih</th></tr></thead>
-        <tbody>
-          ${attempts.map((attempt) => `<tr><td>${escapeHtml(attempt.studentName)}</td><td>${escapeHtml(attempt.className)}</td><td>${attempt.correctCount}</td><td>${attempt.wrongCount}</td><td>${attempt.score}</td><td>${formatDate(attempt.createdAt)}</td></tr>`).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-
-  detailHost.innerHTML = attempts.map((attempt) => `
-    <details class="attempt-card">
-      <summary>
-        <span>${escapeHtml(attempt.studentName)} - ${escapeHtml(attempt.className)}</span>
-        <strong>${attempt.correctCount}/${attempt.total} dogru</strong>
-        <span>${formatDate(attempt.createdAt)}</span>
-      </summary>
-      <ol class="results-list compact-list">
-        ${attempt.answers.map((answer, index) => `<li class="${answer.isCorrect ? "answer-correct" : "answer-wrong"}"><strong>${index + 1}. soru</strong> - Secilen: ${escapeHtml(answer.selectedAnswer)} - Dogru: ${escapeHtml(answer.correctAnswer)}</li>`).join("")}
-      </ol>
-    </details>
-  `).join("");
-
-}
-
-async function renderTeacherDashboard() {
-  if (!document.querySelector("[data-teacher-page]")) {
-    return;
-  }
+function renderTeacherDashboard() {
+  if (!document.querySelector("[data-teacher-page]")) return;
 
   const gate = document.getElementById("teacher-gate");
   const dashboard = document.getElementById("teacher-dashboard");
 
   if (!state.currentUser) {
-    gate.innerHTML = `<div class="gate-card"><h2>Panel icin giris gerekli</h2><p>Ogretmen hesabi ile giris yapmalisiniz.</p><a class="button button-primary" href="giris.html">Ogretmen Girisi</a></div>`;
-    dashboard.hidden = true;
+    gate.innerHTML = `<div class="gate-card"><h2>Panel icin giris gerekli</h2><p>Ogretmen veya admin hesabi ile giris yapin.</p><a class="button button-primary" href="giris.html">Giris Yap</a></div>`;
     return;
   }
 
-  if (state.currentUser.role !== "teacher") {
-    gate.innerHTML = `<div class="gate-card"><h2>Bu alan sadece ogretmen icin</h2><p>Ogrenci hesabi ile quiz ve proje sayfasina donebilirsiniz.</p><a class="button button-primary" href="mini-lab.html">Ogrenci Sayfasi</a></div>`;
-    dashboard.hidden = true;
+  if (!isStaffRole(state.currentUser.role)) {
+    gate.innerHTML = `<div class="gate-card"><h2>Bu alan sadece ogretmen ve admin icindir</h2><p>Ogrenci hesabi ile kendi quiz ve proje alaniniza donebilirsiniz.</p><a class="button button-primary" href="mini-lab.html">Quiz Merkezi</a></div>`;
     return;
   }
 
   gate.hidden = true;
   dashboard.hidden = false;
 
-  if (state.teacherSnapshotUnsubscribe) {
-    state.teacherSnapshotUnsubscribe();
-  }
-
-  try {
-    renderTeacherStats(await state.dataLayer.getTeacherSnapshot());
-  } catch (error) {
-    document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Veriler alinamadi: ${escapeHtml(friendlyErrorMessage(error))}</div>`;
-  }
-
-  state.teacherSnapshotUnsubscribe = state.dataLayer.subscribeTeacherSnapshot(
-    (snapshot) => renderTeacherStats(snapshot),
-    (error) => {
-      document.getElementById("teacher-table").innerHTML = `<div class="empty-state">Canli sonuc baglantisi kurulamadi: ${escapeHtml(friendlyErrorMessage(error))}</div>`;
-    }
-  );
+  loadManagementSnapshot((snapshot) => {
+    renderManagementDashboard(snapshot);
+    bindTeacherDashboardActions();
+  }, (error) => {
+    document.getElementById("teacher-table").innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessage(error))}</div>`;
+  });
 }
 
 async function initPortal() {
   state.dataLayer = await createDataLayer();
   state.currentUser = await state.dataLayer.ensureSetup();
+
   renderSessionBadges();
   renderFirebaseSetupWarning();
-  renderLoginPage();
+  bindLoginPage();
   renderQuizPage();
-  await renderProjectManagementPage();
-  await renderTeacherDashboard();
+  renderProjectManagementPage();
+  renderTeacherDashboard();
 }
 
 initPortal().catch((error) => {
   console.error(error);
   document.querySelectorAll("[data-session-status]").forEach((node) => {
-    node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(friendlyErrorMessage(error) || "Portal baslatilamadi")}</span>`;
+    node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(friendlyErrorMessage(error))}</span>`;
   });
 });

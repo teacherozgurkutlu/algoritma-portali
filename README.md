@@ -1,62 +1,29 @@
-# Algoritma Portali
+# Altieylul BILSEM Proje Yonetim Sistemi
 
-Bu proje, 5. sinif ogrencileri icin hazirlanmis algoritma portalidir.
+Bu repo, eski algoritma portalinin proje yonetimi odakli surume donusturulmus halidir.
 
-## Sayfalar
+## Ana moduller
 
-- `index.html`: Ana sayfa
-- `algoritma-nedir.html`: Algoritma tanimi
-- `neden-onemli.html`: Neden onemli oldugu
-- `gunluk-hayat.html`: Gunluk hayat ornekleri
-- `giris.html`: Ogrenci kaydi ve giris
-- `mini-lab.html`: Quiz alani
-- `proje-yonetimi.html`: Proje yukleme, degerlendirme ve mesajlasma alani
-- `ogretmen-paneli.html`: Quiz sonuclari ve analiz paneli
+- `index.html`: Portal tanitimi ve yeni akis
+- `giris.html`: Ogrenci, ogretmen ve admin giris/kayit ekrani
+- `mini-lab.html`: Ogrenci quiz merkezi, ogretmen/admin quiz olusturma alani
+- `proje-yonetimi.html`: Proje yukleme, degerlendirme ve mesajlasma
+- `ogretmen-paneli.html`: Admin atama ekrani ve yonetim raporlari
 
-## Veri modlari
+## Rol modeli
 
-- `local`: Veriler ayni tarayici icinde tutulur.
-- `firebase`: Gercek cok kullanicili kullanim icin Firebase Auth ve Firestore kullanilir.
+- `student`: Kendi quiz, proje ve mesaj alanini gorur
+- `teacher`: Yalnizca atanmis ogrencilerini gorur, quiz hazirlar, projeleri ve mesajlari yonetir
+- `admin`: Tum ogrencileri, ogretmenleri, quizleri, projeleri, mesajlari ve sonuclari gorur; ogretmen atamasi yapar
 
-Aktif mod `portal-config.js` dosyasindan belirlenir.
+## Veri katmani
 
-## Yeni ozellikler
+- `portal-config.js`: Portal adi, admin hesabi, Firebase ve Drive ayarlari
+- `portal-data.js`: Yerel/Firebase veri erisimi, rol ve atama mantigi
+- `portal.js`: Rol bazli arayuz akislarinin tamami
+- `firestore.rules`: Yeni rol modeline gore Firestore kurallari
 
-- Ogrenci kaydi ve girisi
-- Quiz sonuclarinin kaydi
-- Ogrencinin proje dosyasini Google Drive uzerindeki `bilsemprj` klasorune yukleme akisi
-- Ayrik proje yonetimi sayfasi
-- Ogretmenin proje degerlendirmesi yazabilmesi
-- Ogrenci ve ogretmen arasinda iki yonlu mesajlasma
+## Notlar
 
-## Dosya yapisi
-
-- `portal-config.js`: Web uygulama ayarlari, ogretmen e-postalari ve Google Drive yukleme koprusu
-- `portal-data.js`: Yerel ve Firebase veri katmani
-- `portal.js`: Arayuz mantigi
-- `firebase.json`: Hosting ve Firestore yapilandirmasi
-- `firestore.rules`: Guvenlik kurallari
-- `firestore.indexes.json`: Firestore index yapisi
-- `google-drive-upload/`: Google Apps Script yukleme penceresi ornegi
-
-## Google Drive entegrasyonu
-
-Portal, dosyayi dogrudan tarayicidan sizin Google Drive hesabinizdaki klasore yazamaz. Bu nedenle repo icinde bir Google Apps Script koprusu bulunur.
-
-Kurulum ozeti:
-
-1. `google-drive-upload/Code.gs` ve `google-drive-upload/upload.html` dosyalarini yeni bir Apps Script projesine ekleyin.
-2. Scripti web app olarak yayinlayin. Calisma hesabi sizin Google hesabiniz olsun.
-3. Apps Script icinde gerekli Firebase bilgilerinin `Script properties` olarak tanimlandigindan emin olun.
-4. Web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina yapistirin.
-5. Script ilk yuklemede Drive icinde `bilsemprj` klasorunu olusturur ve ogrenci bazli alt klasorler acar.
-
-## Guvenlik notu
-
-- Firebase `apiKey`, `authDomain`, `projectId` gibi istemci ayarlari tek basina gizli kabul edilmez.
-- Gercek kullanici sifreleri repoda tutulmamalidir.
-- Apps Script tarafinda gerekli gizli bilgiler repoya yazilmak yerine `Script properties` icinde saklanmalidir.
-
-## Onemli not
-
-Gercek cok kullanicili sistemin canliya alinmasi icin bir Firebase projesi gerekir. Google Drive yukleme ozelligi icin de ayrica Apps Script web app koprusunun devreye alinmasi gerekir.
+- Proje yukleme akisi mevcut Google Apps Script koprusunu kullanir.
+- Firebase tarafinda ek ogretmen e-postalari tanimlanacaksa `portal-config.js` ile birlikte `firestore.rules` da guncellenmelidir.

@@ -1,16 +1,16 @@
 :root {
-  --bg: #fff9ef;
-  --bg-soft: #fff2cc;
-  --surface: rgba(255, 255, 255, 0.82);
+  --bg: #f3f2ee;
+  --bg-soft: #ece7dc;
+  --surface: rgba(255, 255, 255, 0.9);
   --surface-strong: #ffffff;
-  --ink: #17324d;
-  --ink-soft: #45607a;
-  --teal: #1f9aa5;
-  --orange: #ff944d;
-  --yellow: #ffd166;
-  --mint: #b8f2e6;
-  --border: rgba(23, 50, 77, 0.12);
-  --shadow: 0 18px 50px rgba(31, 56, 84, 0.12);
+  --ink: #16212f;
+  --ink-soft: #526071;
+  --teal: #0f766e;
+  --orange: #c2410c;
+  --yellow: #f2c14d;
+  --mint: #d4efe8;
+  --border: rgba(22, 33, 47, 0.12);
+  --shadow: 0 20px 60px rgba(32, 42, 54, 0.12);
   --radius-xl: 28px;
   --radius-lg: 20px;
   --radius-md: 14px;
@@ -28,11 +28,11 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
-  font-family: "Nunito", sans-serif;
+  font-family: "Manrope", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(255, 209, 102, 0.65), transparent 28%),
-    radial-gradient(circle at top right, rgba(184, 242, 230, 0.7), transparent 30%),
-    linear-gradient(180deg, #fffef8 0%, var(--bg) 100%);
+    radial-gradient(circle at top left, rgba(242, 193, 77, 0.45), transparent 28%),
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 30%),
+    linear-gradient(180deg, #fbfaf7 0%, var(--bg) 100%);
 }
 
 body::before,
@@ -84,8 +84,8 @@ body::after {
 .brand:visited {
   color: var(--ink);
   text-decoration: none;
-  font-family: "Baloo 2", cursive;
-  font-size: 1.6rem;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.35rem;
   font-weight: 700;
 }
 
@@ -148,9 +148,9 @@ body::after {
 .hero-text h1,
 .page-intro h1 {
   margin: 0 0 12px;
-  font-family: "Baloo 2", cursive;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(2.2rem, 5vw, 3.8rem);
-  line-height: 0.95;
+  line-height: 1;
 }
 
 .hero-text p,
@@ -183,7 +183,7 @@ body::after {
 .feature-band h2 {
   margin-top: 0;
   margin-bottom: 8px;
-  font-family: "Baloo 2", cursive;
+  font-family: "Space Grotesk", sans-serif;
   font-size: 1.7rem;
   line-height: 1;
 }
@@ -227,7 +227,7 @@ body::after {
   border-radius: 999px;
   cursor: pointer;
   text-decoration: none;
-  font-family: "Nunito", sans-serif;
+  font-family: "Manrope", sans-serif;
   font-size: 1rem;
   font-weight: 800;
   transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
@@ -239,8 +239,8 @@ body::after {
 
 .button-primary {
   color: #fff;
-  background: linear-gradient(135deg, #1f9aa5, #16757d);
-  box-shadow: 0 10px 24px rgba(31, 154, 165, 0.28);
+  background: linear-gradient(135deg, #0f766e, #14532d);
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.24);
 }
 
 .button-secondary {
@@ -392,7 +392,7 @@ body::after {
   background: var(--surface-strong);
   color: var(--ink);
   text-align: left;
-  font-family: "Nunito", sans-serif;
+  font-family: "Manrope", sans-serif;
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
@@ -470,7 +470,7 @@ body::after {
 .result-summary h3,
 .stat-card strong {
   margin-top: 0;
-  font-family: "Baloo 2", cursive;
+  font-family: "Space Grotesk", sans-serif;
 }
 
 .form-grid {
@@ -504,6 +504,7 @@ body::after {
 }
 
 .field textarea,
+.field select,
 .teacher-tools select {
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -514,6 +515,7 @@ body::after {
 }
 
 .field textarea:focus,
+.field select:focus,
 .teacher-tools select:focus,
 .teacher-tools input:focus {
   outline: 2px solid rgba(31, 154, 165, 0.25);
@@ -624,7 +626,7 @@ body::after {
   border-radius: 50%;
   background: var(--teal);
   color: #fff;
-  font-family: "Baloo 2", cursive;
+  font-family: "Space Grotesk", sans-serif;
   font-size: 2rem;
   font-weight: 700;
 }
@@ -729,7 +731,7 @@ body::after {
 .rank-item h3,
 .question-analysis-item h3 {
   margin: 0 0 6px;
-  font-family: "Baloo 2", cursive;
+  font-family: "Space Grotesk", sans-serif;
   font-size: 1.35rem;
   line-height: 1;
 }
@@ -773,7 +775,7 @@ body::after {
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(255, 209, 102, 0.95), rgba(255, 148, 77, 0.9));
   color: var(--ink);
-  font-family: "Baloo 2", cursive;
+  font-family: "Space Grotesk", sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
 }
@@ -865,7 +867,7 @@ body::after {
 .teacher-student-column h3,
 .review-block h4 {
   margin: 0;
-  font-family: "Baloo 2", cursive;
+  font-family: "Space Grotesk", sans-serif;
 }
 
 .project-head p,
@@ -931,6 +933,102 @@ body::after {
   margin-top: 18px;
 }
 
+.hero-portal {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(212, 239, 232, 0.8));
+}
+
+.portal-hero-card {
+  background: linear-gradient(180deg, rgba(242, 193, 77, 0.22), rgba(255, 255, 255, 0.96));
+}
+
+.portal-stage-grid,
+.quiz-editor-grid,
+.detail-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.portal-stage-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.portal-auth-layout {
+  align-items: start;
+}
+
+.login-hero-card {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-badges,
+.check-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.compact-callout h3,
+.question-editor-head h3 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.quiz-card-body,
+.assignment-controls {
+  display: grid;
+  gap: 14px;
+}
+
+.check-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.question-editor-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow);
+}
+
+.question-editor-head,
+.assignment-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.assignment-row {
+  padding: 18px;
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.assignment-row p {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+}
+
+.assignment-controls select {
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
 .teacher-student-content {
   padding: 0 18px 18px;
   grid-template-columns: 1.1fr 0.9fr;
@@ -962,11 +1060,13 @@ body::after {
   .feature-band,
   .grid-section,
   .lab-grid,
+  .portal-stage-grid,
   .auth-layout,
   .dashboard-grid,
   .result-summary,
   .teacher-tools,
   .analysis-grid,
+  .quiz-editor-grid,
   .teacher-student-content {
     grid-template-columns: 1fr;
   }

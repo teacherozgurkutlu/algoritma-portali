@@ -3,75 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mini Lab</title>
-  <meta name="description" content="Algoritma konusunu pekistiren 20 soruluk quiz.">
+  <title>Quiz Merkezi | Altıeylül BİLSEM Proje Yönetim Sistemi</title>
+  <meta name="description" content="Öğrenciler için quiz çözme, öğretmenler ve admin için quiz hazırlama alanı.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-quiz-page="true">
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="index.html">Algoritma Portali</a>
+      <a class="brand" href="index.html">Altıeylül BİLSEM Proje Yönetim Sistemi</a>
       <nav class="site-nav" aria-label="Ana menu">
         <a href="index.html">Ana Sayfa</a>
-        <a href="algoritma-nedir.html">Algoritma Nedir?</a>
-        <a href="neden-onemli.html">Neden Onemli?</a>
-        <a href="gunluk-hayat.html">Gunluk Hayat</a>
-        <a class="active" href="mini-lab.html">Mini Lab</a>
-        <a href="proje-yonetimi.html">Projeler</a>
-        <a href="giris.html">Giris</a>
-        <a href="ogretmen-paneli.html">Panel</a>
+        <a href="giris.html">Giriş</a>
+        <a class="active" href="mini-lab.html">Quiz Merkezi</a>
+        <a href="proje-yonetimi.html">Proje Alanı</a>
+        <a href="ogretmen-paneli.html">Yönetim Paneli</a>
       </nav>
     </header>
 
-    <main class="content-page reveal">
-      <section class="page-intro">
-        <p class="eyebrow">4. Durak</p>
-        <h1>Mini Lab</h1>
-        <p>Bu bolumde ogrenciler, daha kapsamli algoritma anlatimlarina gore hazirlanmis 20 soruluk quizi cozer.</p>
+    <main class="content-page">
+      <section class="page-intro reveal portal-intro">
+        <p class="eyebrow">Quiz akışı</p>
+        <h1>Quiz Merkezi</h1>
+        <p>Öğrenciler kendilerine açılan quizleri çözer. Öğretmen ve admin ise yeni quizler tasarlar ve sonuçları takip eder.</p>
       </section>
 
-      <section class="account-strip" data-session-status></section>
+      <section class="account-strip reveal" data-session-status></section>
       <section id="firebase-warning"></section>
 
       <section id="quiz-gate"></section>
 
-      <section class="quiz-shell" id="quiz-shell" hidden>
-        <article class="lab-card">
-          <h2>20 soruluk quiz</h2>
-          <p>Her soruyu dikkatlice oku. Bu quizde temel kavramlarin yani sira karar, tekrar, girdi-cikti ve verimlilik gibi konular da olculur.</p>
+      <section id="student-quiz-shell" class="content-page" hidden>
+        <div class="dashboard-grid" id="student-quiz-stats"></div>
 
-          <form id="quiz-form" class="quiz-form">
-            <div id="quiz-body"></div>
-            <div class="inline-actions">
-              <button class="button button-primary" type="submit">Quiz gonder</button>
-              <a class="button button-secondary" href="giris.html">Hesap sayfasi</a>
-            </div>
-            <p class="auth-message" id="quiz-message" aria-live="polite"></p>
-          </form>
+        <article class="lab-card">
+          <h2>Atanan öğretmen ve aktif quizler</h2>
+          <div id="student-quiz-overview"></div>
         </article>
 
         <article class="lab-card">
-          <h2>Son quiz sonucu</h2>
-          <div id="quiz-result" class="empty-state">Henuz quiz gonderilmedi.</div>
+          <h2>Çözebileceğim quizler</h2>
+          <div id="student-quiz-list"></div>
         </article>
 
         <article class="lab-card">
-          <h2>Gecmis denemelerim</h2>
+          <h2>Geçmiş quiz sonuçlarım</h2>
           <div id="student-attempts"></div>
+        </article>
+      </section>
+
+      <section id="staff-quiz-shell" class="content-page" hidden>
+        <div class="dashboard-grid" id="staff-quiz-stats"></div>
+
+        <article class="lab-card">
+          <h2>Yeni quiz oluştur</h2>
+          <div id="quiz-builder-shell"></div>
+        </article>
+
+        <article class="lab-card">
+          <h2>Hazırlanan quizler</h2>
+          <div id="staff-quiz-list"></div>
+        </article>
+
+        <article class="lab-card">
+          <h2>Quiz sonuç özeti</h2>
+          <div id="staff-quiz-results"></div>
         </article>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Quiz sonuclari aktif veri moduna gore yerel veya Firebase uzerinde tutulur.</p>
+      <p>Quizler kullanıcı atamalarına göre öğrencilere açılır.</p>
     </footer>
   </div>
 
-  <script src="script.js"></script>
-  <script src="portal-config.js?v=20260406-1"></script>
-  <script type="module" src="portal.js?v=20260406-1"></script>
+  <script src="portal-config.js?v=20260407-1"></script>
+  <script type="module" src="portal.js?v=20260407-1"></script>
 </body>
 </html>

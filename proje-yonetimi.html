@@ -3,77 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Proje Yonetimi</title>
-  <meta name="description" content="Ogrenci proje yukleme, ogretmen degerlendirme ve mesajlasma sayfasi.">
+  <title>Proje Alanı | Altıeylül BİLSEM Proje Yönetim Sistemi</title>
+  <meta name="description" content="Proje teslimi, değerlendirme ve mesajlaşma alanı.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-project-page="true">
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="index.html">Algoritma Portali</a>
+      <a class="brand" href="index.html">Altıeylül BİLSEM Proje Yönetim Sistemi</a>
       <nav class="site-nav" aria-label="Ana menu">
         <a href="index.html">Ana Sayfa</a>
-        <a href="algoritma-nedir.html">Algoritma Nedir?</a>
-        <a href="neden-onemli.html">Neden Onemli?</a>
-        <a href="gunluk-hayat.html">Gunluk Hayat</a>
-        <a href="mini-lab.html">Mini Lab</a>
-        <a class="active" href="proje-yonetimi.html">Projeler</a>
-        <a href="giris.html">Giris</a>
-        <a href="ogretmen-paneli.html">Panel</a>
+        <a href="giris.html">Giriş</a>
+        <a href="mini-lab.html">Quiz Merkezi</a>
+        <a class="active" href="proje-yonetimi.html">Proje Alanı</a>
+        <a href="ogretmen-paneli.html">Yönetim Paneli</a>
       </nav>
     </header>
 
-    <main class="content-page reveal">
-      <section class="page-intro">
-        <p class="eyebrow">Proje Alani</p>
-        <h1>Proje Yonetimi</h1>
-        <p>Ogrenciler proje dosyalarini yukler, ogretmen degerlendirme ve mesajlasma islemlerini bu sayfadan yonetir.</p>
+    <main class="content-page">
+      <section class="page-intro reveal portal-intro">
+        <p class="eyebrow">Teslim ve iletişim</p>
+        <h1>Proje Alanı</h1>
+        <p>Öğrenciler proje yükler ve öğretmeniyle mesajlaşır. Öğretmen ve admin tarafı tüm teslimleri thread bazlı takip eder.</p>
       </section>
 
-      <section class="account-strip" data-session-status></section>
+      <section class="account-strip reveal" data-session-status></section>
       <section id="firebase-warning"></section>
 
-      <section id="project-student-gate"></section>
-      <section id="project-teacher-gate"></section>
+      <section id="project-gate"></section>
 
       <section id="project-student-shell" class="content-page" hidden>
+        <div class="dashboard-grid" id="student-project-stats"></div>
+
         <article class="lab-card">
-          <h2>Proje dosyasi yukleme</h2>
+          <h2>Öğretmen bilgisi ve teslim özeti</h2>
+          <div id="student-project-overview"></div>
+        </article>
+
+        <article class="lab-card">
+          <h2>Proje yükleme</h2>
           <div id="student-project-upload"></div>
         </article>
 
         <article class="lab-card">
-          <h2>Yukledigim projeler</h2>
+          <h2>Yüklediğim projeler</h2>
           <div id="student-project-list"></div>
         </article>
 
         <article class="lab-card">
-          <h2>Ogretmen ile mesajlasma</h2>
+          <h2>Mesajlaşma</h2>
           <div id="student-message-thread"></div>
         </article>
       </section>
 
-      <section id="project-teacher-shell" class="content-page" hidden>
-        <div class="dashboard-grid" id="project-teacher-stats"></div>
+      <section id="project-staff-shell" class="content-page" hidden>
+        <div class="dashboard-grid" id="project-staff-stats"></div>
 
         <article class="lab-card">
-          <h2>Proje dosyalari ve mesajlasma</h2>
-          <p>Buradan proje yukleyen ogrencileri gorebilir, degerlendirme yazabilir ve mesajlasabilirsiniz.</p>
-          <div id="teacher-project-workspace"></div>
+          <h2>Öğrenci bazlı proje ve mesaj iş akışı</h2>
+          <div id="project-staff-workspace"></div>
         </article>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Proje ve mesajlasma akislari aktif veri moduna gore yerel veya Firebase uzerinden yonetilir.</p>
+      <p>Proje dosyaları, mesajlar ve değerlendirmeler rol bazlı görünür.</p>
     </footer>
   </div>
 
-  <script src="script.js"></script>
-  <script src="portal-config.js?v=20260406-1"></script>
-  <script type="module" src="portal.js?v=20260406-1"></script>
+  <script src="portal-config.js?v=20260407-1"></script>
+  <script type="module" src="portal.js?v=20260407-1"></script>
 </body>
 </html>

@@ -3,37 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ogretmen Paneli</title>
-  <meta name="description" content="Ogrenci quiz sonuclarini gosteren ogretmen paneli.">
+  <title>Yönetim Paneli | Altıeylül BİLSEM Proje Yönetim Sistemi</title>
+  <meta name="description" content="Admin ve öğretmenler için yönetim, atama ve raporlama paneli.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-teacher-page="true">
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="index.html">Algoritma Portali</a>
+      <a class="brand" href="index.html">Altıeylül BİLSEM Proje Yönetim Sistemi</a>
       <nav class="site-nav" aria-label="Ana menu">
         <a href="index.html">Ana Sayfa</a>
-        <a href="algoritma-nedir.html">Algoritma Nedir?</a>
-        <a href="neden-onemli.html">Neden Onemli?</a>
-        <a href="gunluk-hayat.html">Gunluk Hayat</a>
-        <a href="mini-lab.html">Mini Lab</a>
-        <a href="proje-yonetimi.html">Projeler</a>
-        <a href="giris.html">Giris</a>
-        <a class="active" href="ogretmen-paneli.html">Panel</a>
+        <a href="giris.html">Giriş</a>
+        <a href="mini-lab.html">Quiz Merkezi</a>
+        <a href="proje-yonetimi.html">Proje Alanı</a>
+        <a class="active" href="ogretmen-paneli.html">Yönetim Paneli</a>
       </nav>
     </header>
 
-    <main class="content-page reveal">
-      <section class="page-intro">
-        <p class="eyebrow">Yonetim</p>
-        <h1>Ogretmen Paneli</h1>
-        <p>Burada quiz sonuclarini ve ogrenci performans analizlerini gorebilirsiniz. Proje ve mesajlasma islemleri ayri sayfadadir.</p>
+    <main class="content-page">
+      <section class="page-intro reveal portal-intro">
+        <p class="eyebrow">Yönetim ve raporlama</p>
+        <h1>Yönetim Paneli</h1>
+        <p>Öğretmenler kendi öğrencilerini izler. Admin ise öğretmen atamaları dahil tüm sistem görünümüne sahiptir.</p>
       </section>
 
-      <section class="account-strip" data-session-status></section>
+      <section class="account-strip reveal" data-session-status></section>
       <section id="firebase-warning"></section>
 
       <section id="teacher-gate"></section>
@@ -41,86 +38,81 @@
       <section id="teacher-dashboard" hidden>
         <div class="dashboard-grid" id="teacher-stats"></div>
 
-        <div class="inline-actions">
-          <button class="button button-primary" type="button" id="download-results">Sonuclari indir</button>
-          <button class="button button-secondary" type="button" id="download-results-csv">CSV indir</button>
-          <a class="button button-secondary" href="mini-lab.html">Quiz sayfasi</a>
-        </div>
-
         <article class="lab-card">
-          <h2>Filtrele ve sirala</h2>
+          <h2>Filtrele ve sırala</h2>
           <div class="teacher-tools">
             <label class="field">
-              <span>Ogrenci ara</span>
-              <input type="text" id="teacher-search" placeholder="Ad, e-posta veya sinif">
+              <span>Öğrenci ara</span>
+              <input type="text" id="teacher-search" placeholder="Ad, e-posta veya sınıf">
             </label>
             <label class="field">
-              <span>Sinif</span>
+              <span>Sınıf</span>
               <select id="teacher-class-filter">
-                <option value="all">Tum siniflar</option>
+                <option value="all">Tüm sınıflar</option>
               </select>
             </label>
             <label class="field">
-              <span>Sirala</span>
+              <span>Sırala</span>
               <select id="teacher-sort">
-                <option value="date_desc">En yeni once</option>
-                <option value="date_asc">En eski once</option>
-                <option value="score_desc">Puan yuksekten</option>
-                <option value="score_asc">Puan dusukten</option>
-                <option value="name_asc">Isme gore A-Z</option>
+                <option value="date_desc">En yeni etkinlik</option>
+                <option value="score_desc">Puan yüksekten</option>
+                <option value="score_asc">Puan düşükten</option>
+                <option value="name_asc">İsme göre A-Z</option>
               </select>
             </label>
             <div class="tool-actions">
-              <button class="button button-secondary" type="button" id="teacher-filter-reset">Filtreleri temizle</button>
+              <button class="button button-secondary" type="button" id="teacher-filter-reset">Temizle</button>
             </div>
           </div>
           <p class="filter-summary" id="teacher-filter-summary"></p>
         </article>
 
-        <article class="lab-card">
-          <h2>Sonuc tablosu</h2>
-          <div id="teacher-table"></div>
-        </article>
+        <section id="admin-assignment-section" hidden>
+          <article class="lab-card">
+            <h2>Öğretmen atamaları</h2>
+            <div id="assignment-board"></div>
+          </article>
+        </section>
 
         <section class="analysis-grid">
           <article class="lab-card">
-            <h2>Ogrenci ozetleri</h2>
-            <div id="teacher-student-summary"></div>
+            <h2>Öğretmen / yönetici listesi</h2>
+            <div id="teacher-directory"></div>
           </article>
 
           <article class="lab-card">
-            <h2>En basarili ogrenciler</h2>
-            <div id="teacher-top-students"></div>
+            <h2>Öğrenci özetleri</h2>
+            <div id="teacher-student-summary"></div>
           </article>
         </section>
 
         <article class="lab-card">
-          <h2>En cok yanlis yapilan sorular</h2>
+          <h2>Quiz sonuçları</h2>
+          <div class="inline-actions">
+            <button class="button button-primary" type="button" id="download-results">JSON indir</button>
+            <button class="button button-secondary" type="button" id="download-results-csv">CSV indir</button>
+          </div>
+          <div id="teacher-table"></div>
+        </article>
+
+        <article class="lab-card">
+          <h2>Proje, mesaj ve quiz dağılımı</h2>
           <div id="teacher-question-analysis"></div>
         </article>
 
         <article class="lab-card">
-          <h2>Detayli cevaplar</h2>
+          <h2>Detaylı öğrenci akışı</h2>
           <div id="teacher-details"></div>
-        </article>
-
-        <article class="lab-card">
-          <h2>Proje yonetimi</h2>
-          <p>Proje dosyalari, degerlendirmeler ve ogrenci mesajlari ayri proje yonetimi sayfasinda yer alir.</p>
-          <div class="inline-actions">
-            <a class="button button-primary" href="proje-yonetimi.html">Proje Yonetimi Sayfasi</a>
-          </div>
         </article>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Panel, aktif veri moduna gore yerel veya merkezi sonuclari gosterir.</p>
+      <p>Yönetim paneli canlı veriye göre otomatik güncellenir.</p>
     </footer>
   </div>
 
-  <script src="script.js"></script>
-  <script src="portal-config.js?v=20260406-1"></script>
-  <script type="module" src="portal.js?v=20260406-1"></script>
+  <script src="portal-config.js?v=20260407-1"></script>
+  <script type="module" src="portal.js?v=20260407-1"></script>
 </body>
 </html>

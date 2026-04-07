@@ -6,8 +6,27 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isTeacher() {
+    function isAdminBootstrapEmail() {
       return isSignedIn() && request.auth.token.email == "kutluozgur79@gmail.com";
+    }
+
+    function currentRole() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isAdmin() {
+      return currentRole() == "admin";
+    }
+
+    function isTeacher() {
+      return currentRole() == "teacher";
+    }
+
+    function isStaff() {
+      return isAdmin() || isTeacher();
     }
 
     function isOwner(userId) {
@@ -15,45 +34,69 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isTeacher();
+      allow read: if isOwner(userId) ||
+        isAdmin() ||
+        (isTeacher() && (resource.data.assignedTeacherId == request.auth.uid || userId == request.auth.uid));
 
       allow create: if isOwner(userId) &&
         (
-          (isTeacher() && request.resource.data.role == "teacher") ||
-          (!isTeacher() && request.resource.data.role == "student")
+          request.resource.data.role == "student" ||
+          (request.resource.data.role in ["teacher", "admin"] && isAdminBootstrapEmail())
         );
 
-      allow update: if isTeacher() ||
+      allow update: if isAdmin() ||
         (
           isOwner(userId) &&
-          request.resource.data.role == resource.data.role
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.assignedTeacherId == resource.data.assignedTeacherId &&
+          request.resource.data.assignedTeacherName == resource.data.assignedTeacherName &&
+          request.resource.data.assignedTeacherEmail == resource.data.assignedTeacherEmail
         );
 
       allow delete: if false;
     }
 
+    match /quizzes/{quizId} {
+      allow create: if isStaff() && request.resource.data.createdBy == request.auth.uid;
+      allow read: if isAdmin() ||
+        (isTeacher() && resource.data.createdBy == request.auth.uid) ||
+        (isSignedIn() && request.auth.uid in resource.data.accessibleUserIds);
+      allow update: if isAdmin() || (isTeacher() && resource.data.createdBy == request.auth.uid);
+      allow delete: if false;
+    }
+
     match /attempts/{attemptId} {
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow read: if isTeacher() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        currentRole() == "student";
+      allow read: if isAdmin() ||
+        (isTeacher() && resource.data.teacherId == request.auth.uid) ||
+        (isSignedIn() && resource.data.userId == request.auth.uid);
       allow update, delete: if false;
     }
 
     match /projects/{projectId} {
-      allow create: if isTeacher() || (isSignedIn() && request.resource.data.userId == request.auth.uid);
-      allow read: if isTeacher() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow update: if isTeacher();
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        currentRole() == "student";
+      allow read: if isAdmin() ||
+        (isTeacher() && resource.data.teacherId == request.auth.uid) ||
+        (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || (isTeacher() && resource.data.teacherId == request.auth.uid);
       allow delete: if false;
     }
 
     match /messages/{messageId} {
       allow create: if isSignedIn() &&
+        request.resource.data.senderId == request.auth.uid &&
         (
-          (isTeacher() && request.resource.data.senderRole == "teacher") ||
-          (!isTeacher() &&
-            request.resource.data.senderRole == "student" &&
-            request.resource.data.studentId == request.auth.uid)
+          (currentRole() == "student" && request.resource.data.studentId == request.auth.uid) ||
+          (isTeacher() && request.resource.data.teacherId == request.auth.uid) ||
+          isAdmin()
         );
-      allow read: if isTeacher() || (isSignedIn() && resource.data.studentId == request.auth.uid);
+      allow read: if isAdmin() ||
+        (isTeacher() && resource.data.teacherId == request.auth.uid) ||
+        (isSignedIn() && resource.data.studentId == request.auth.uid);
       allow update, delete: if false;
     }
   }

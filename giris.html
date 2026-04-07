@@ -3,96 +3,111 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Giris ve Kayit</title>
-  <meta name="description" content="Ogrenci kaydi ve ogretmen girisi sayfasi.">
+  <title>Giriş | Altıeylül BİLSEM Proje Yönetim Sistemi</title>
+  <meta name="description" content="Altıeylül BİLSEM Proje Yönetim Sistemi giriş ve kayıt sayfası.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-login-page="true">
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="index.html">Algoritma Portali</a>
+      <a class="brand" href="index.html">Altıeylül BİLSEM Proje Yönetim Sistemi</a>
       <nav class="site-nav" aria-label="Ana menu">
         <a href="index.html">Ana Sayfa</a>
-        <a href="algoritma-nedir.html">Algoritma Nedir?</a>
-        <a href="neden-onemli.html">Neden Onemli?</a>
-        <a href="gunluk-hayat.html">Gunluk Hayat</a>
-        <a href="mini-lab.html">Mini Lab</a>
-        <a href="proje-yonetimi.html">Projeler</a>
-        <a class="active" href="giris.html">Giris</a>
-        <a href="ogretmen-paneli.html">Panel</a>
+        <a class="active" href="giris.html">Giriş</a>
+        <a href="mini-lab.html">Quiz Merkezi</a>
+        <a href="proje-yonetimi.html">Proje Alanı</a>
+        <a href="ogretmen-paneli.html">Yönetim Paneli</a>
       </nav>
     </header>
 
-    <main class="content-page reveal">
-      <section class="page-intro">
-        <p class="eyebrow">Yeni ozellik</p>
-        <h1>Giris ve Kayit</h1>
-        <p>Ogrenciler kayit olup quiz cozer ve projelerini yonetir. Ogretmen ise panel ve proje sayfasindan tum kayitlari gorur.</p>
+    <main class="content-page">
+      <section class="page-intro reveal portal-intro">
+        <p class="eyebrow">Kimlik doğrulama</p>
+        <h1>Rol bazlı giriş</h1>
+        <p>
+          Öğrenci, öğretmen ve admin kullanıcıları aynı ekranı kullanır. Rol, tanımlı e-posta yapısına göre otomatik belirlenir.
+        </p>
       </section>
 
-      <section class="account-strip" data-session-status></section>
+      <section class="account-strip reveal" data-session-status></section>
       <section id="firebase-warning"></section>
 
-      <section class="auth-layout">
+      <section class="auth-layout portal-auth-layout reveal">
+        <article class="auth-card login-hero-card">
+          <p class="eyebrow">Portal erişimi</p>
+          <h2>Altıeylül BİLSEM Proje Yönetim Sistemi</h2>
+          <p>
+            Öğrenciler kayıt olduktan sonra yönetici tarafından öğretmen ataması yapılır. Atanan öğretmen,
+            kendi öğrencilerini quiz, proje ve mesaj ekranlarından yönetir.
+          </p>
+          <div class="auth-badges">
+            <span class="status-pill">Öğrenci kaydı</span>
+            <span class="status-pill">Öğretmen girişi</span>
+            <span class="status-pill">Admin erişimi</span>
+          </div>
+          <div class="callout-card compact-callout">
+            <h3>Yetki özeti</h3>
+            <p>Admin tüm kayıtları görür. Öğretmen sadece atanmış öğrencileriyle çalışır. Öğrenci yalnızca kendi alanını görür.</p>
+          </div>
+        </article>
+
         <article class="auth-card">
-          <h2>Ogrenci kaydi</h2>
+          <h2>Kayıt ol</h2>
           <form id="register-form" class="form-grid">
             <label class="field">
               <span>Ad soyad</span>
-              <input type="text" name="name" placeholder="Ornek: Ali Yilmaz">
+              <input type="text" name="name" placeholder="Örnek: Ayşe Yılmaz">
             </label>
             <label class="field">
-              <span>Sinif</span>
-              <input type="text" name="className" placeholder="Ornek: 5/A">
+              <span>Sınıf / Birim</span>
+              <input type="text" name="className" placeholder="Örnek: 6/A veya Robotik">
             </label>
             <label class="field">
               <span>E-posta</span>
-              <input type="email" name="email" placeholder="ogrenci@example.com">
+              <input type="email" name="email" placeholder="kullanici@example.com">
             </label>
             <label class="field">
-              <span>Sifre</span>
-              <input type="password" name="password" placeholder="En az 4 karakter">
+              <span>Şifre</span>
+              <input type="password" name="password" placeholder="En az 6 karakter">
             </label>
-            <button class="button button-primary" type="submit">Kayit Ol</button>
+            <button class="button button-primary" type="submit">Kaydı tamamla</button>
           </form>
           <p class="auth-message" id="register-message" aria-live="polite"></p>
         </article>
 
         <article class="auth-card">
-          <h2>Giris yap</h2>
+          <h2>Giriş yap</h2>
           <form id="login-form" class="form-grid">
             <label class="field">
               <span>E-posta</span>
               <input type="email" name="email" placeholder="E-posta">
             </label>
             <label class="field">
-              <span>Sifre</span>
-              <input type="password" name="password" placeholder="Sifre">
+              <span>Şifre</span>
+              <input type="password" name="password" placeholder="Şifre">
             </label>
-            <button class="button button-primary" type="submit">Giris Yap</button>
+            <button class="button button-primary" type="submit">Giriş yap</button>
           </form>
           <p class="auth-message" id="login-message" aria-live="polite"></p>
           <div id="active-session"></div>
         </article>
       </section>
 
-      <section class="callout-card">
-        <h2>Ogretmen girisi</h2>
-        <p>Ogretmen hesabi bilgisi aktif moda gore asagida gosterilir.</p>
+      <section class="callout-card reveal">
+        <h2>Öğretmen ve admin hesapları</h2>
         <div id="teacher-login-note"></div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Yerel mod veya Firebase modu ile calisacak sekilde hazirlandi.</p>
+      <p>Giriş sonrası rolünüze uygun ekrana otomatik yönlendirilirsiniz.</p>
     </footer>
   </div>
 
-  <script src="script.js"></script>
-  <script src="portal-config.js?v=20260406-1"></script>
-  <script type="module" src="portal.js?v=20260406-1"></script>
+  <script src="portal-config.js?v=20260407-1"></script>
+  <script type="module" src="portal.js?v=20260407-1"></script>
 </body>
 </html>

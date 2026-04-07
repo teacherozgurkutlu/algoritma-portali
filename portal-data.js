@@ -945,8 +945,22 @@ async function buildFirebaseDataLayer() {
     },
     async getStudentWorkspace(userId) {
       const student = await fetchUserProfile(userId);
-      const [teacher, attemptsSnapshot, projectsSnapshot, messagesSnapshot, quizzesSnapshot] = await Promise.all([
-        student?.assignedTeacherId ? fetchUserProfile(student.assignedTeacherId) : Promise.resolve(null),
+      let teacher = null;
+      if (student?.assignedTeacherId) {
+        try {
+          teacher = await fetchUserProfile(student.assignedTeacherId);
+        } catch {
+          teacher = student.assignedTeacherId ? {
+            id: student.assignedTeacherId,
+            name: student.assignedTeacherName || "Yetkili personel",
+            email: student.assignedTeacherEmail || "",
+            role: "teacher",
+            className: "BILSEM"
+          } : null;
+        }
+      }
+
+      const [attemptsSnapshot, projectsSnapshot, messagesSnapshot, quizzesSnapshot] = await Promise.all([
         getDocs(query(collection(db, "attempts"), where("userId", "==", userId))),
         getDocs(query(collection(db, "projects"), where("userId", "==", userId))),
         getDocs(query(collection(db, "messages"), where("studentId", "==", userId))),
@@ -998,10 +1012,27 @@ async function buildFirebaseDataLayer() {
             teacherUnsubscribe = onSnapshot(
               doc(db, "users", cache.student.assignedTeacherId),
               (teacherSnapshot) => {
-                cache.teacher = teacherSnapshot.exists() ? mapUser(teacherSnapshot) : null;
+                cache.teacher = teacherSnapshot.exists()
+                  ? mapUser(teacherSnapshot)
+                  : {
+                    id: cache.student.assignedTeacherId,
+                    name: cache.student.assignedTeacherName || "Yetkili personel",
+                    email: cache.student.assignedTeacherEmail || "",
+                    role: "teacher",
+                    className: "BILSEM"
+                  };
                 publish();
               },
-              onError
+              () => {
+                cache.teacher = {
+                  id: cache.student.assignedTeacherId,
+                  name: cache.student.assignedTeacherName || "Yetkili personel",
+                  email: cache.student.assignedTeacherEmail || "",
+                  role: "teacher",
+                  className: "BILSEM"
+                };
+                publish();
+              }
             );
           } else {
             cache.teacher = null;

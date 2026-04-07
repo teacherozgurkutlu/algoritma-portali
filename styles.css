@@ -71,7 +71,7 @@ body::after {
   display: grid;
   justify-items: center;
   gap: 18px;
-  padding: 22px 20px 16px;
+  padding: 22px 24px 16px;
   margin-bottom: 28px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
@@ -84,6 +84,7 @@ body::after {
 .brand:visited {
   display: block;
   width: 100%;
+  max-width: calc(100% - 360px);
   color: var(--ink);
   text-decoration: none;
   font-family: "Space Grotesk", sans-serif;
@@ -102,8 +103,8 @@ body::after {
 
 .header-session {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 12px;
+  right: 16px;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -1125,6 +1126,11 @@ body::after {
   .header-session {
     position: static;
     justify-self: end;
+  }
+
+  .brand,
+  .brand:visited {
+    max-width: 100%;
   }
 
   .split-card {

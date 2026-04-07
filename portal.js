@@ -11,7 +11,7 @@ import {
   isGoogleDriveUploadConfigured,
   isStaffRole,
   isTeacherRole
-} from "./portal-data.js?v=20260407-4";
+} from "./portal-data.js?v=20260407-6";
 
 const state = {
   dataLayer: null,
@@ -1695,8 +1695,10 @@ function renderManagementDashboard(snapshot) {
             </div>
             <div class="inline-actions">
               <button class="button button-secondary" type="button" data-clear-assignments-email="${escapeHtml(email)}">Bu ogretmenin atamalarini temizle</button>
+              <button class="button button-secondary" type="button" data-remove-teacher-email="${escapeHtml(email)}">Ogretmen e-postasini sil</button>
             </div>
             <p class="inline-note" data-clear-assignments-status="${escapeHtml(email)}"></p>
+            <p class="inline-note" data-remove-teacher-status="${escapeHtml(email)}"></p>
           </article>
         `;
         }).join("") : `<div class="empty-state">Admin disinda tanimli ek ogretmen e-postasi yok.</div>`}
@@ -1849,27 +1851,55 @@ function bindTeacherDashboardActions() {
     });
 
     teacherEmailHost.addEventListener("click", async (event) => {
-      const button = event.target.closest("[data-clear-assignments-email]");
-      if (!button) return;
+      const clearButton = event.target.closest("[data-clear-assignments-email]");
+      const removeButton = event.target.closest("[data-remove-teacher-email]");
+      if (!clearButton && !removeButton) return;
 
-      const teacherEmail = String(button.getAttribute("data-clear-assignments-email") || "").trim().toLowerCase();
-      const status = teacherEmailHost.querySelector(`[data-clear-assignments-status="${teacherEmail}"]`);
-      if (!teacherEmail) return;
-      if (!window.confirm(`${teacherEmail} icin mevcut ogrenci atamalarini temizlemek istiyor musunuz?`)) return;
+      if (clearButton) {
+        const teacherEmail = String(clearButton.getAttribute("data-clear-assignments-email") || "").trim().toLowerCase();
+        const status = teacherEmailHost.querySelector(`[data-clear-assignments-status="${teacherEmail}"]`);
+        if (!teacherEmail) return;
+        if (!window.confirm(`${teacherEmail} icin mevcut ogrenci atamalarini temizlemek istiyor musunuz?`)) return;
 
-      button.disabled = true;
-      if (status) status.textContent = "Temizleniyor...";
+        clearButton.disabled = true;
+        if (status) status.textContent = "Temizleniyor...";
 
-      try {
-        await state.dataLayer.clearAssignmentsForTeacherEmail(teacherEmail, state.currentUser);
-        clearTeacherAssignmentsInSnapshot(state.managementSnapshot, teacherEmail);
-        renderManagementDashboard(state.managementSnapshot);
-        const refreshedStatus = document.querySelector(`[data-clear-assignments-status="${teacherEmail}"]`);
-        if (refreshedStatus) refreshedStatus.textContent = "Atamalar temizlendi.";
-      } catch (error) {
-        if (status) status.textContent = friendlyErrorMessage(error);
-      } finally {
-        button.disabled = false;
+        try {
+          await state.dataLayer.clearAssignmentsForTeacherEmail(teacherEmail, state.currentUser);
+          clearTeacherAssignmentsInSnapshot(state.managementSnapshot, teacherEmail);
+          renderManagementDashboard(state.managementSnapshot);
+          const refreshedStatus = document.querySelector(`[data-clear-assignments-status="${teacherEmail}"]`);
+          if (refreshedStatus) refreshedStatus.textContent = "Atamalar temizlendi.";
+        } catch (error) {
+          if (status) status.textContent = friendlyErrorMessage(error);
+        } finally {
+          clearButton.disabled = false;
+        }
+        return;
+      }
+
+      if (removeButton) {
+        const teacherEmail = String(removeButton.getAttribute("data-remove-teacher-email") || "").trim().toLowerCase();
+        const status = teacherEmailHost.querySelector(`[data-remove-teacher-status="${teacherEmail}"]`);
+        if (!teacherEmail) return;
+        if (!window.confirm(`${teacherEmail} ogretmen e-postasini listeden silmek istiyor musunuz?`)) return;
+
+        removeButton.disabled = true;
+        if (status) status.textContent = "Siliniyor...";
+
+        try {
+          await state.dataLayer.removeApprovedTeacherEmail(teacherEmail, state.currentUser);
+          if (state.managementSnapshot) {
+            state.managementSnapshot.approvedTeacherEmails = (state.managementSnapshot.approvedTeacherEmails || []).filter((email) => normalizeText(email) !== normalizeText(teacherEmail));
+          }
+          renderManagementDashboard(state.managementSnapshot);
+          const refreshedStatus = document.querySelector(`[data-remove-teacher-status="${teacherEmail}"]`);
+          if (refreshedStatus) refreshedStatus.textContent = "E-posta listeden silindi.";
+        } catch (error) {
+          if (status) status.textContent = friendlyErrorMessage(error);
+        } finally {
+          removeButton.disabled = false;
+        }
       }
     });
   }

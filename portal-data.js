@@ -496,6 +496,19 @@ function buildLocalDataLayer() {
       seedStaffAccounts();
       return merged;
     },
+    async removeApprovedTeacherEmail(email, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen e-postasi silebilir.");
+      }
+      const normalized = normalizeEmail(email);
+      if (!normalized || normalized === normalizeEmail(ADMIN_CONFIG.email)) {
+        throw new Error("Bu e-posta silinemez.");
+      }
+      const next = getStoredApprovedTeacherEmails().filter((item) => normalizeEmail(item) !== normalized);
+      saveStoredApprovedTeacherEmails(next);
+      seedStaffAccounts();
+      return getMergedApprovedTeacherEmails(next);
+    },
     async saveQuiz(actor, payload) {
       if (!actor || !isStaffRole(actor.role)) {
         throw new Error("Quiz olusturma yetkiniz yok.");
@@ -934,6 +947,17 @@ async function buildFirebaseDataLayer() {
         createdBy: actor.id,
         createdByName: actor.name
       }, { merge: true });
+      return this.listApprovedTeacherEmails();
+    },
+    async removeApprovedTeacherEmail(email, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen e-postasi silebilir.");
+      }
+      const normalized = normalizeEmail(email);
+      if (!normalized || normalized === normalizeEmail(ADMIN_CONFIG.email)) {
+        throw new Error("Bu e-posta silinemez.");
+      }
+      await firestoreModule.deleteDoc(doc(db, "staffEmails", normalized));
       return this.listApprovedTeacherEmails();
     },
     async saveQuiz(actor, payload) {

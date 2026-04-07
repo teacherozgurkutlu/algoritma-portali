@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260407-5">
 </head>
 <body data-login-page="true">
   <div class="page-shell">
@@ -40,47 +40,54 @@
             Ogrenciler kayit olduktan sonra yonetici tarafindan ogretmen atamasi yapilir.
             Atanan ogretmen kendi ogrencilerini quiz, proje ve mesaj ekranlarindan yonetir.
           </p>
-        </article>
-
-        <article class="auth-card">
-          <h2>Kayit ol</h2>
-          <form id="register-form" class="form-grid">
-            <label class="field">
-              <span>Ad soyad</span>
-              <input type="text" name="name" placeholder="Ornek: Ayse Yilmaz">
-            </label>
-            <label class="field">
-              <span>Sinif / Birim</span>
-              <input type="text" name="className" placeholder="Ornek: 6/A veya Robotik">
-            </label>
-            <label class="field">
-              <span>E-posta</span>
-              <input type="email" name="email" placeholder="kullanici@example.com">
-            </label>
-            <label class="field">
-              <span>Sifre</span>
-              <input type="password" name="password" placeholder="En az 6 karakter">
-            </label>
-            <button class="button button-primary" type="submit">Kaydi tamamla</button>
-          </form>
-          <p class="auth-message" id="register-message" aria-live="polite"></p>
-        </article>
-
-        <article class="auth-card">
-          <h2>Giris yap</h2>
-          <form id="login-form" class="form-grid">
-            <label class="field">
-              <span>E-posta</span>
-              <input type="email" name="email" placeholder="E-posta">
-            </label>
-            <label class="field">
-              <span>Sifre</span>
-              <input type="password" name="password" placeholder="Sifre">
-            </label>
-            <button class="button button-primary" type="submit">Giris yap</button>
-          </form>
-          <p class="auth-message" id="login-message" aria-live="polite"></p>
           <div id="active-session"></div>
+        </article>
+
+        <article class="auth-card auth-tabs-card">
+          <div class="auth-tabs" role="tablist" aria-label="Kimlik dogrulama sekmeleri">
+            <button type="button" class="auth-tab active" data-auth-tab="login">Oturum Ac</button>
+            <button type="button" class="auth-tab" data-auth-tab="register">Kayit Ol</button>
+          </div>
+
+          <section data-auth-panel="login">
+            <h2>Oturum Ac</h2>
+            <form id="login-form" class="form-grid">
+              <label class="field">
+                <span>E-posta</span>
+                <input type="email" name="email" placeholder="E-posta">
+              </label>
+              <label class="field">
+                <span>Sifre</span>
+                <input type="password" name="password" placeholder="Sifre">
+              </label>
+              <button class="button button-primary" type="submit">Oturum Ac</button>
+            </form>
+            <p class="auth-message" id="login-message" aria-live="polite"></p>
+          </section>
+
+          <section data-auth-panel="register" hidden>
+            <h2>Kayit Ol</h2>
+            <form id="register-form" class="form-grid">
+              <label class="field">
+                <span>Ad soyad</span>
+                <input type="text" name="name" placeholder="Ornek: Ayse Yilmaz">
+              </label>
+              <label class="field">
+                <span>Sinif / Birim</span>
+                <input type="text" name="className" placeholder="Ornek: 6/A veya Robotik">
+              </label>
+              <label class="field">
+                <span>E-posta</span>
+                <input type="email" name="email" placeholder="kullanici@example.com">
+              </label>
+              <label class="field">
+                <span>Sifre</span>
+                <input type="password" name="password" placeholder="En az 6 karakter">
+              </label>
+              <button class="button button-primary" type="submit">Kaydi Tamamla</button>
+            </form>
+            <p class="auth-message" id="register-message" aria-live="polite"></p>
+          </section>
         </article>
       </section>
 
@@ -92,7 +99,7 @@
     </footer>
   </div>
 
-  <script src="portal-config.js?v=20260407-4"></script>
-  <script type="module" src="portal.js?v=20260407-4"></script>
+  <script src="portal-config.js?v=20260407-5"></script>
+  <script type="module" src="portal.js?v=20260407-5"></script>
 </body>
 </html>

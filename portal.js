@@ -252,7 +252,7 @@ function renderSessionBadges() {
       <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
     `;
     node.innerHTML = `
-      <span class="status-pill">Oturum acik</span>
+      <span class="status-pill">${escapeHtml(state.currentUser.name)} | ${roleLabel(state.currentUser.role)}</span>
       <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
     `;
   });
@@ -1105,22 +1105,32 @@ function bindLoginPage() {
   const loginMessage = document.getElementById("login-message");
   const registerMessage = document.getElementById("register-message");
   const activeSession = document.getElementById("active-session");
+  const tabButtons = document.querySelectorAll("[data-auth-tab]");
+  const tabPanels = document.querySelectorAll("[data-auth-panel]");
+
+  if (tabButtons.length && tabPanels.length) {
+    const setActiveTab = (tabId) => {
+      tabButtons.forEach((button) => {
+        button.classList.toggle("active", button.getAttribute("data-auth-tab") === tabId);
+      });
+      tabPanels.forEach((panel) => {
+        panel.hidden = panel.getAttribute("data-auth-panel") !== tabId;
+      });
+    };
+
+    tabButtons.forEach((button) => {
+      if (button.dataset.bound) return;
+      button.dataset.bound = "true";
+      button.addEventListener("click", () => setActiveTab(button.getAttribute("data-auth-tab")));
+    });
+
+    setActiveTab("login");
+  }
 
   if (state.currentUser && activeSession) {
     activeSession.innerHTML = `
-      <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong> • ${escapeHtml(roleLabel(state.currentUser.role))}</div>
-      <div class="inline-actions">
-        <button class="button button-secondary" type="button" id="login-logout-button">Cikis Yap</button>
-      </div>
+      <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong> - ${escapeHtml(roleLabel(state.currentUser.role))}</div>
     `;
-
-    const logoutButton = document.getElementById("login-logout-button");
-    if (logoutButton) {
-      logoutButton.onclick = async () => {
-        await state.dataLayer.logoutUser();
-        window.location.reload();
-      };
-    }
   }
 
   if (loginForm && !loginForm.dataset.bound) {

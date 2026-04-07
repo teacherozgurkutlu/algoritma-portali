@@ -21,7 +21,7 @@ function doGet(e) {
 }
 
 function uploadProject(formObject) {
-  const fileBlob = extractUploadBlob_(formObject.projectFile);
+  const fileBlob = extractUploadBlob_(formObject);
   if (!fileBlob || typeof fileBlob.getBytes !== "function") {
     throw new Error("Lutfen bir dosya secin.");
   }
@@ -58,16 +58,27 @@ function uploadProject(formObject) {
   };
 }
 
-function extractUploadBlob_(value) {
-  if (!value) {
+function extractUploadBlob_(formObject) {
+  if (!formObject) {
     return null;
   }
-  if (typeof value.getBytes === "function") {
+
+  const value = formObject.projectFile;
+  if (value && typeof value.getBytes === "function") {
     return value;
   }
   if (Array.isArray(value) && value.length && typeof value[0].getBytes === "function") {
     return value[0];
   }
+
+  const base64 = sanitizeText_(formObject.projectFileBase64);
+  if (base64) {
+    const name = sanitizeFileName_(formObject.projectFileName || "proje");
+    const mimeType = sanitizeText_(formObject.projectFileMimeType) || "application/octet-stream";
+    const bytes = Utilities.base64Decode(base64);
+    return Utilities.newBlob(bytes, mimeType, name);
+  }
+
   return null;
 }
 

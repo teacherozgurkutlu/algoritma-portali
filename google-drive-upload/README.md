@@ -21,6 +21,7 @@ Bu klasor, ogrenci dosyalarini ogretmenin Google Drive hesabindaki `bilsemprj` k
 
 - Hata: `Lutfen bir dosya secin.`
   Bu hata genelde eski deployment kullanildiginda gorulur. `Code.gs` ve `upload.html` dosyalarini guncelleyip yeniden deploy edin.
+  Yeni surum dosyayi `base64` olarak gonderir; bu nedenle file-input aktarim uyumsuzluklarinda da calisir.
 
 ## Ne yapar
 

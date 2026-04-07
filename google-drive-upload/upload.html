@@ -246,22 +246,63 @@
       }
 
       button.disabled = true;
-      statusNode.textContent = "Dosya Google Drive'a yukleniyor...";
+      statusNode.textContent = "Dosya okunuyor...";
 
       form.projectTitle.value = form.projectTitle.value.trim();
       form.description.value = form.description.value.trim();
 
-      google.script.run
-        .withSuccessHandler(function(result) {
-          redirectToPortalCallback(result);
-        })
-        .withFailureHandler(function(error) {
-          var message = (error && error.message) || "Yukleme basarisiz oldu.";
+      var reader = new FileReader();
+      reader.onload = function() {
+        try {
+          var dataUrl = String(reader.result || "");
+          var commaIndex = dataUrl.indexOf(",");
+          var base64 = commaIndex >= 0 ? dataUrl.slice(commaIndex + 1) : "";
+          if (!base64) {
+            throw new Error("Dosya verisi okunamadi.");
+          }
+
+          statusNode.textContent = "Dosya Google Drive'a yukleniyor...";
+          var payload = {
+            requestId: form.requestId.value,
+            portalOrigin: form.portalOrigin.value,
+            studentId: form.studentId.value,
+            studentName: form.studentName.value,
+            className: form.className.value,
+            email: form.email.value,
+            projectTitle: form.projectTitle.value,
+            description: form.description.value,
+            projectFileBase64: base64,
+            projectFileName: file.name || "proje",
+            projectFileMimeType: file.type || "application/octet-stream"
+          };
+
+          google.script.run
+            .withSuccessHandler(function(result) {
+              redirectToPortalCallback(result);
+            })
+            .withFailureHandler(function(error) {
+              var message = (error && error.message) || "Yukleme basarisiz oldu.";
+              statusNode.textContent = message;
+              button.disabled = false;
+              postToPortal("google-drive-upload-error", { message });
+            })
+            .uploadProject(payload);
+        } catch (error) {
+          var message = (error && error.message) || "Dosya okunamadi.";
           statusNode.textContent = message;
           button.disabled = false;
           postToPortal("google-drive-upload-error", { message });
-        })
-        .uploadProject(form);
+        }
+      };
+
+      reader.onerror = function() {
+        var message = "Dosya okunamadi.";
+        statusNode.textContent = message;
+        button.disabled = false;
+        postToPortal("google-drive-upload-error", { message });
+      };
+
+      reader.readAsDataURL(file);
     }
   </script>
 </body>

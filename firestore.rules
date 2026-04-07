@@ -10,6 +10,12 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email == "kutluozgur79@gmail.com";
     }
 
+    function isApprovedTeacherEmail() {
+      return isSignedIn() && request.auth.token.email in [
+        "kutluozgur79@gmail.com"
+      ];
+    }
+
     function currentRole() {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -42,7 +48,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
         (
           request.resource.data.role == "student" ||
-          (request.resource.data.role in ["teacher", "admin"] && isAdminBootstrapEmail())
+          (request.resource.data.role in ["teacher", "admin"] && isApprovedTeacherEmail())
         );
 
       allow update: if isAdmin() ||
@@ -50,9 +56,9 @@ service cloud.firestore {
         (
           isOwner(userId) &&
           request.resource.data.role == resource.data.role &&
-          request.resource.data.assignedTeacherId == resource.data.assignedTeacherId &&
-          request.resource.data.assignedTeacherName == resource.data.assignedTeacherName &&
-          request.resource.data.assignedTeacherEmail == resource.data.assignedTeacherEmail
+          request.resource.data.assignedTeacherId == ("assignedTeacherId" in resource.data ? resource.data.assignedTeacherId : null) &&
+          request.resource.data.assignedTeacherName == ("assignedTeacherName" in resource.data ? resource.data.assignedTeacherName : "") &&
+          request.resource.data.assignedTeacherEmail == ("assignedTeacherEmail" in resource.data ? resource.data.assignedTeacherEmail : "")
         );
 
       allow delete: if false;

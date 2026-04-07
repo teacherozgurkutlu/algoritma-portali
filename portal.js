@@ -196,6 +196,7 @@ function renderTeacherLoginNote() {
     <p><strong>Admin e-postasi:</strong> ${escapeHtml(portalMeta.adminEmail)}</p>
     <p><strong>Tanimli ogretmen e-postalari:</strong> ${approvedEmails.length ? approvedEmails.map(escapeHtml).join(", ") : "Henuz tanim yok"}</p>
     <p>Ogretmen ve admin rolleri e-posta listesine gore belirlenir. Ogrenci hesaplari normal kayit akisiyla olusturulur.</p>
+    <p>Su an sistem <strong>${escapeHtml(getModeLabel())}</strong> modunda. Firebase modunda daha once kullandiginiz Firebase sifresi gecerlidir; eski yerel ogretmen sifresi gecmez.</p>
   `;
 }
 

@@ -36,6 +36,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) ||
         isAdmin() ||
+        isAdminBootstrapEmail() ||
         (isTeacher() && (resource.data.assignedTeacherId == request.auth.uid || userId == request.auth.uid));
 
       allow create: if isOwner(userId) &&
@@ -45,6 +46,7 @@ service cloud.firestore {
         );
 
       allow update: if isAdmin() ||
+        isAdminBootstrapEmail() ||
         (
           isOwner(userId) &&
           request.resource.data.role == resource.data.role &&

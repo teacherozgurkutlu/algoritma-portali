@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quiz Merkezi | Altıeylül BİLSEM Proje Yönetim Sistemi</title>
-  <meta name="description" content="Öğrenciler için quiz çözme, öğretmenler ve admin için quiz hazırlama alanı.">
+  <title>Quiz Merkezi | Altieylul BILSEM Proje Yonetim Sistemi</title>
+  <meta name="description" content="Ogrenciler icin quiz cozme, ogretmenler ve admin icin quiz hazirlama alani.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -13,73 +13,48 @@
 <body data-quiz-page="true">
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="index.html">Altıeylül BİLSEM Proje Yönetim Sistemi</a>
+      <a class="brand" href="index.html">Altieylul BILSEM Proje Yonetim Sistemi</a>
+      <div class="header-session" data-header-session></div>
       <nav class="site-nav" aria-label="Ana menu">
         <a href="index.html">Ana Sayfa</a>
-        <a href="giris.html">Giriş</a>
+        <a href="giris.html">Giris</a>
         <a class="active" href="mini-lab.html">Quiz Merkezi</a>
-        <a href="proje-yonetimi.html">Proje Alanı</a>
-        <a href="ogretmen-paneli.html">Yönetim Paneli</a>
+        <a href="proje-yonetimi.html">Proje Alani</a>
+        <a href="mesajlasma.html">Mesajlasma</a>
+        <a href="ogretmen-paneli.html">Yonetim Paneli</a>
       </nav>
     </header>
 
     <main class="content-page">
       <section class="page-intro reveal portal-intro">
-        <p class="eyebrow">Quiz akışı</p>
+        <p class="eyebrow">Quiz akisi</p>
         <h1>Quiz Merkezi</h1>
-        <p>Öğrenciler kendilerine açılan quizleri çözer. Öğretmen ve admin ise yeni quizler tasarlar ve sonuçları takip eder.</p>
+        <p>Ogrenciler kendilerine acilan quizleri cozer. Ogretmen ve admin yeni quizler tasarlar.</p>
       </section>
-
-      <section class="account-strip reveal" data-session-status></section>
-      <section id="firebase-warning"></section>
 
       <section id="quiz-gate"></section>
 
       <section id="student-quiz-shell" class="content-page" hidden>
         <div class="dashboard-grid" id="student-quiz-stats"></div>
-
-        <article class="lab-card">
-          <h2>Atanan öğretmen ve aktif quizler</h2>
-          <div id="student-quiz-overview"></div>
-        </article>
-
-        <article class="lab-card">
-          <h2>Çözebileceğim quizler</h2>
-          <div id="student-quiz-list"></div>
-        </article>
-
-        <article class="lab-card">
-          <h2>Geçmiş quiz sonuçlarım</h2>
-          <div id="student-attempts"></div>
-        </article>
+        <article class="lab-card"><h2>Atanan ogretmen ve aktif quizler</h2><div id="student-quiz-overview"></div></article>
+        <article class="lab-card"><h2>Cozebilecegim quizler</h2><div id="student-quiz-list"></div></article>
+        <article class="lab-card"><h2>Gecmis quiz sonuclarim</h2><div id="student-attempts"></div></article>
       </section>
 
       <section id="staff-quiz-shell" class="content-page" hidden>
         <div class="dashboard-grid" id="staff-quiz-stats"></div>
-
-        <article class="lab-card">
-          <h2>Yeni quiz oluştur</h2>
-          <div id="quiz-builder-shell"></div>
-        </article>
-
-        <article class="lab-card">
-          <h2>Hazırlanan quizler</h2>
-          <div id="staff-quiz-list"></div>
-        </article>
-
-        <article class="lab-card">
-          <h2>Quiz sonuç özeti</h2>
-          <div id="staff-quiz-results"></div>
-        </article>
+        <article class="lab-card"><h2>Yeni quiz olustur</h2><div id="quiz-builder-shell"></div></article>
+        <article class="lab-card"><h2>Hazirlanan quizler</h2><div id="staff-quiz-list"></div></article>
+        <article class="lab-card"><h2>Quiz sonuc ozeti</h2><div id="staff-quiz-results"></div></article>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Quizler kullanıcı atamalarına göre öğrencilere açılır.</p>
+      <p>Quizler ogrenci atamalarina gore acilir.</p>
     </footer>
   </div>
 
-  <script src="portal-config.js?v=20260407-3"></script>
-  <script type="module" src="portal.js?v=20260407-3"></script>
+  <script src="portal-config.js?v=20260407-4"></script>
+  <script type="module" src="portal.js?v=20260407-4"></script>
 </body>
 </html>

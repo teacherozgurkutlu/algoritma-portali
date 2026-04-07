@@ -14,11 +14,13 @@
   <div class="page-shell">
     <header class="site-header">
       <a class="brand" href="index.html">Altieylul BILSEM Proje Yonetim Sistemi</a>
+      <div class="header-session" data-header-session></div>
       <nav class="site-nav" aria-label="Ana menu">
         <a href="index.html">Ana Sayfa</a>
         <a href="giris.html">Giris</a>
         <a href="mini-lab.html">Quiz Merkezi</a>
         <a href="proje-yonetimi.html">Proje Alani</a>
+        <a href="mesajlasma.html">Mesajlasma</a>
         <a class="active" href="ogretmen-paneli.html">Yonetim Paneli</a>
       </nav>
     </header>
@@ -27,11 +29,8 @@
       <section class="page-intro reveal portal-intro">
         <p class="eyebrow">Yonetim ve raporlama</p>
         <h1>Yonetim Paneli</h1>
-        <p>Ogretmenler kendi ogrencilerini izler. Admin ise ogretmen atamalari dahil tum sistem gorunumune sahiptir.</p>
+        <p>Ogretmenler kendi ogrencilerini izler. Admin tum sistem gorunumune sahiptir.</p>
       </section>
-
-      <section class="account-strip reveal" data-session-status></section>
-      <section id="firebase-warning"></section>
 
       <section id="teacher-gate"></section>
 
@@ -47,9 +46,7 @@
             </label>
             <label class="field">
               <span>Sinif</span>
-              <select id="teacher-class-filter">
-                <option value="all">Tum siniflar</option>
-              </select>
+              <select id="teacher-class-filter"><option value="all">Tum siniflar</option></select>
             </label>
             <label class="field">
               <span>Sirala</span>
@@ -60,35 +57,19 @@
                 <option value="name_asc">Isme gore A-Z</option>
               </select>
             </label>
-            <div class="tool-actions">
-              <button class="button button-secondary" type="button" id="teacher-filter-reset">Temizle</button>
-            </div>
+            <div class="tool-actions"><button class="button button-secondary" type="button" id="teacher-filter-reset">Temizle</button></div>
           </div>
           <p class="filter-summary" id="teacher-filter-summary"></p>
         </article>
 
         <section id="admin-assignment-section" hidden>
-          <article class="lab-card">
-            <h2>Ogretmen atamalari</h2>
-            <div id="assignment-board"></div>
-          </article>
-
-          <article class="lab-card">
-            <h2>Ogretmen e-posta yetkilendirme</h2>
-            <div id="teacher-email-admin"></div>
-          </article>
+          <article class="lab-card"><h2>Ogretmen atamalari</h2><div id="assignment-board"></div></article>
+          <article class="lab-card"><h2>Ogretmen e-posta yetkilendirme</h2><div id="teacher-email-admin"></div></article>
         </section>
 
         <section class="analysis-grid">
-          <article class="lab-card">
-            <h2>Ogretmen / yonetici listesi</h2>
-            <div id="teacher-directory"></div>
-          </article>
-
-          <article class="lab-card">
-            <h2>Ogrenci ozetleri</h2>
-            <div id="teacher-student-summary"></div>
-          </article>
+          <article class="lab-card"><h2>Ogretmen / yonetici listesi</h2><div id="teacher-directory"></div></article>
+          <article class="lab-card"><h2>Ogrenci ozetleri</h2><div id="teacher-student-summary"></div></article>
         </section>
 
         <article class="lab-card">
@@ -100,15 +81,8 @@
           <div id="teacher-table"></div>
         </article>
 
-        <article class="lab-card">
-          <h2>Proje, mesaj ve quiz dagilimi</h2>
-          <div id="teacher-question-analysis"></div>
-        </article>
-
-        <article class="lab-card">
-          <h2>Detayli ogrenci akisi</h2>
-          <div id="teacher-details"></div>
-        </article>
+        <article class="lab-card"><h2>Proje, mesaj ve quiz dagilimi</h2><div id="teacher-question-analysis"></div></article>
+        <article class="lab-card"><h2>Detayli ogrenci akisi</h2><div id="teacher-details"></div></article>
       </section>
     </main>
 
@@ -117,7 +91,7 @@
     </footer>
   </div>
 
-  <script src="portal-config.js?v=20260407-3"></script>
-  <script type="module" src="portal.js?v=20260407-3"></script>
+  <script src="portal-config.js?v=20260407-4"></script>
+  <script type="module" src="portal.js?v=20260407-4"></script>
 </body>
 </html>

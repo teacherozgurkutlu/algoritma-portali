@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Altıeylül BİLSEM Proje Yönetim Sistemi</title>
-  <meta name="description" content="Altıeylül BİLSEM Proje Yönetim Sistemi ile öğrenci, öğretmen ve admin akışlarını tek portaldan yönetin.">
+  <title>Altieylul BILSEM Proje Yonetim Sistemi</title>
+  <meta name="description" content="Altieylul BILSEM Proje Yonetim Sistemi ile ogrenci, ogretmen ve admin akislarini yonetin.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -13,114 +13,50 @@
 <body data-home-page="true">
   <div class="page-shell">
     <header class="site-header">
-      <a class="brand" href="index.html">Altıeylül BİLSEM Proje Yönetim Sistemi</a>
+      <a class="brand" href="index.html">Altieylul BILSEM Proje Yonetim Sistemi</a>
+      <div class="header-session" data-header-session></div>
       <nav class="site-nav" aria-label="Ana menu">
         <a class="active" href="index.html">Ana Sayfa</a>
-        <a href="giris.html">Giriş</a>
+        <a href="giris.html">Giris</a>
         <a href="mini-lab.html">Quiz Merkezi</a>
-        <a href="proje-yonetimi.html">Proje Alanı</a>
-        <a href="ogretmen-paneli.html">Yönetim Paneli</a>
+        <a href="proje-yonetimi.html">Proje Alani</a>
+        <a href="mesajlasma.html">Mesajlasma</a>
+        <a href="ogretmen-paneli.html">Yonetim Paneli</a>
       </nav>
     </header>
 
     <main class="content-page">
-      <section class="account-strip reveal" data-session-status></section>
-      <section id="firebase-warning"></section>
-
       <section class="hero hero-portal reveal">
         <div class="hero-text">
-          <p class="eyebrow">Proje odaklı yeni yapı</p>
-          <h1>Öğrenci takibi, quiz üretimi ve proje yönetimi tek portalda.</h1>
+          <p class="eyebrow">Proje odakli yeni yapi</p>
+          <h1>Ogrenci takibi, quiz uretimi ve proje yonetimi tek portalda.</h1>
           <p>
-            Yeni sistemde öğretmenler kendi öğrencilerine mesaj gönderebilir, quiz hazırlayabilir,
-            proje teslimlerini inceleyebilir. Admin ise atamaları yönetir ve tüm hareketleri izler.
+            Ogretmenler kendi ogrencilerine mesaj gonderebilir, quiz hazirlayabilir ve proje teslimlerini inceleyebilir.
+            Admin ise atamalari yonetir ve tum hareketleri izler.
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="giris.html">Sisteme Gir</a>
-            <a class="button button-secondary" href="ogretmen-paneli.html">Yönetim Paneli</a>
+            <a class="button button-secondary" href="ogretmen-paneli.html">Yonetim Paneli</a>
           </div>
         </div>
         <div class="hero-card portal-hero-card">
-          <p class="eyebrow">Akış</p>
+          <p class="eyebrow">Akis</p>
           <ol>
-            <li>Öğrenci kayıt olur</li>
-            <li>Admin öğretmen atar</li>
-            <li>Öğretmen quiz ve proje sürecini yönetir</li>
-            <li>Admin tüm sonuçları ve iletişimi izler</li>
+            <li>Ogrenci kayit olur</li>
+            <li>Admin ogretmen atar</li>
+            <li>Ogretmen quiz ve proje surecini yonetir</li>
+            <li>Admin tum sonuclari ve iletisimi izler</li>
           </ol>
         </div>
-      </section>
-
-      <section class="grid-section reveal">
-        <article class="info-card">
-          <h2>Öğrenci Alanı</h2>
-          <p>Atandığı öğretmeni görür, kendisine açılan quizleri çözer, projelerini yükler ve mesaj gönderir.</p>
-        </article>
-        <article class="info-card">
-          <h2>Öğretmen Alanı</h2>
-          <p>Kendi öğrencilerine özel quizler oluşturur, gelen projeleri değerlendirir ve thread bazlı mesajlaşır.</p>
-        </article>
-        <article class="info-card">
-          <h2>Admin Alanı</h2>
-          <p>Öğretmen atamalarını yapar; tüm quizleri, sonuçları, projeleri ve konuşmaları tek merkezden görür.</p>
-        </article>
-      </section>
-
-      <section class="feature-band reveal">
-        <div>
-          <p class="eyebrow">Yeni modüller</p>
-          <h2>Eski algoritma portalı yerine operasyonel bir proje yönetim yapısı</h2>
-        </div>
-        <div class="feature-list">
-          <span>Rol bazlı erişim</span>
-          <span>Öğretmen ataması</span>
-          <span>Quiz oluşturma</span>
-          <span>Quiz sonuç takibi</span>
-          <span>Proje yükleme</span>
-          <span>Öğretmen değerlendirmesi</span>
-          <span>İki yönlü mesajlaşma</span>
-        </div>
-      </section>
-
-      <section class="portal-stage-grid reveal">
-        <article class="callout-card">
-          <h2>Kullanım sırası</h2>
-          <div class="stack-section">
-            <div class="timeline-item">
-              <h3>Kayıt ve giriş</h3>
-              <p>Öğrenciler ve tanımlı öğretmen hesapları aynı giriş sayfasını kullanır.</p>
-            </div>
-            <div class="timeline-item">
-              <h3>Atama ve planlama</h3>
-              <p>Admin öğrenciyi uygun öğretmene bağlar; öğretmen listesi sistem tarafından yönetilir.</p>
-            </div>
-            <div class="timeline-item">
-              <h3>İcra ve izleme</h3>
-              <p>Quiz, proje ve mesaj trafiği öğrenci-teacher thread’leri üzerinden ilerler.</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="callout-card">
-          <h2>Geçiş notu</h2>
-          <p>
-            Konu anlatımı sayfaları kaldırıldı. Portal artık öğretim içeriği sunmuyor; doğrudan proje,
-            quiz ve takip süreçlerine odaklanıyor.
-          </p>
-          <div class="inline-actions">
-            <a class="button button-primary" href="mini-lab.html">Quiz Merkezi</a>
-            <a class="button button-secondary" href="proje-yonetimi.html">Proje Alanı</a>
-          </div>
-        </article>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>Altıeylül BİLSEM Proje Yönetim Sistemi • statik web + Firebase destekli kurgu</p>
+      <p>Altieylul BILSEM Proje Yonetim Sistemi</p>
     </footer>
   </div>
 
-  <script src="portal-config.js?v=20260407-3"></script>
-  <script type="module" src="portal.js?v=20260407-3"></script>
+  <script src="portal-config.js?v=20260407-4"></script>
+  <script type="module" src="portal.js?v=20260407-4"></script>
 </body>
 </html>

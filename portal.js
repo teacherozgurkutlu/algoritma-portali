@@ -11,7 +11,7 @@ import {
   isGoogleDriveUploadConfigured,
   isStaffRole,
   isTeacherRole
-} from "./portal-data.js?v=20260407-3";
+} from "./portal-data.js?v=20260407-4";
 
 const state = {
   dataLayer: null,
@@ -237,6 +237,34 @@ function toCsvCell(value) {
 }
 
 function renderSessionBadges() {
+  document.querySelectorAll("[data-session-status]").forEach((node) => {
+    node.innerHTML = "";
+  });
+
+  document.querySelectorAll("[data-header-session]").forEach((node) => {
+    if (!state.currentUser) {
+      node.innerHTML = `<a class="button button-secondary" href="giris.html">Giris Yap</a>`;
+      return;
+    }
+
+    node.innerHTML = `
+      <span class="status-pill">${escapeHtml(state.currentUser.name)} â€¢ ${roleLabel(state.currentUser.role)}</span>
+      <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
+    `;
+    node.innerHTML = `
+      <span class="status-pill">Oturum acik</span>
+      <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
+    `;
+  });
+
+  document.querySelectorAll("[data-logout-button]").forEach((button) => {
+    button.onclick = async () => {
+      await state.dataLayer.logoutUser();
+      window.location.href = "giris.html";
+    };
+  });
+  return;
+
   const modeLabel = getModeLabel();
 
   document.querySelectorAll("[data-session-status]").forEach((node) => {
@@ -268,6 +296,8 @@ function renderSessionBadges() {
 function renderFirebaseSetupWarning() {
   const host = document.getElementById("firebase-warning");
   if (!host) return;
+  host.innerHTML = "";
+  return;
 
   if (!isFirebaseModeConfigured()) {
     host.innerHTML = `
@@ -296,6 +326,8 @@ function renderFirebaseSetupWarning() {
 function renderTeacherLoginNote() {
   const host = document.getElementById("teacher-login-note");
   if (!host) return;
+  host.innerHTML = "";
+  return;
 
   const portalMeta = getPortalMeta();
   const approvedEmails = getApprovedTeacherEmails();
@@ -1078,7 +1110,6 @@ function bindLoginPage() {
     activeSession.innerHTML = `
       <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong> • ${escapeHtml(roleLabel(state.currentUser.role))}</div>
       <div class="inline-actions">
-        <a class="button button-primary" href="${homePathForUser(state.currentUser)}">${nextStepLabel(state.currentUser)}</a>
         <button class="button button-secondary" type="button" id="login-logout-button">Cikis Yap</button>
       </div>
     `;
@@ -1492,6 +1523,12 @@ function renderManagementDashboard(snapshot) {
 
   const directoryHost = document.getElementById("teacher-directory");
   if (directoryHost) {
+    const directoryCard = directoryHost.closest(".lab-card");
+    if (directoryCard) {
+      directoryCard.hidden = !isAdminRole(state.currentUser.role);
+    }
+  }
+  if (directoryHost && isAdminRole(state.currentUser.role)) {
     directoryHost.innerHTML = assignmentTargets.length
       ? `
         <div class="summary-card-grid">
@@ -1867,14 +1904,16 @@ function renderQuizPage() {
 }
 
 function renderProjectManagementPage() {
-  if (!document.querySelector("[data-project-page]")) return;
+  const isProjectPage = Boolean(document.querySelector("[data-project-page]"));
+  const isMessagePage = Boolean(document.querySelector("[data-message-page]"));
+  if (!isProjectPage && !isMessagePage) return;
 
   const gate = document.getElementById("project-gate");
   const studentShell = document.getElementById("project-student-shell");
   const staffShell = document.getElementById("project-staff-shell");
 
   if (!state.currentUser) {
-    gate.innerHTML = `<div class="gate-card"><h2>Proje alani icin giris gerekli</h2><p>Ogrenci veya yetkili personel olarak oturum acin.</p><a class="button button-primary" href="giris.html">Giris Yap</a></div>`;
+    gate.innerHTML = `<div class="gate-card"><h2>${isMessagePage ? "Mesajlasma alani icin giris gerekli" : "Proje alani icin giris gerekli"}</h2><p>Ogrenci veya yetkili personel olarak oturum acin.</p><a class="button button-primary" href="giris.html">Giris Yap</a></div>`;
     return;
   }
 
@@ -1886,6 +1925,19 @@ function renderProjectManagementPage() {
     loadManagementSnapshot((snapshot) => {
       renderStaffProjectPage(snapshot);
       bindStaffProjectActions();
+
+      const rows = document.querySelectorAll(".teacher-student-content");
+      rows.forEach((row) => {
+        const columns = row.querySelectorAll(".teacher-student-column");
+        if (columns.length < 2) return;
+        if (isMessagePage) {
+          columns[0].setAttribute("hidden", "hidden");
+          columns[1].removeAttribute("hidden");
+        } else {
+          columns[1].setAttribute("hidden", "hidden");
+          columns[0].removeAttribute("hidden");
+        }
+      });
     });
     return;
   }
@@ -1895,6 +1947,20 @@ function renderProjectManagementPage() {
   loadStudentWorkspace((snapshot) => {
     renderStudentProjectPage(snapshot);
     bindStudentProjectActions();
+
+    const messageCard = document.getElementById("student-message-thread")?.closest(".lab-card");
+    const projectListCard = document.getElementById("student-project-list")?.closest(".lab-card");
+    const uploadCard = document.getElementById("student-project-upload")?.closest(".lab-card");
+
+    if (isMessagePage) {
+      if (projectListCard) projectListCard.hidden = true;
+      if (uploadCard) uploadCard.hidden = true;
+      if (messageCard) messageCard.hidden = false;
+    } else {
+      if (messageCard) messageCard.hidden = true;
+      if (projectListCard) projectListCard.hidden = false;
+      if (uploadCard) uploadCard.hidden = false;
+    }
   });
 }
 
@@ -1939,7 +2005,7 @@ async function initPortal() {
 
 initPortal().catch((error) => {
   console.error(error);
-  document.querySelectorAll("[data-session-status]").forEach((node) => {
+  document.querySelectorAll("[data-session-status], [data-header-session]").forEach((node) => {
     node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(friendlyErrorMessage(error))}</span>`;
   });
 });

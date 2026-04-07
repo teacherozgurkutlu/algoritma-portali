@@ -15,6 +15,12 @@ Bu klasor, ogrenci dosyalarini ogretmenin Google Drive hesabindaki `bilsemprj` k
 5. Scripti `Deploy > New deployment > Web app` ile yayinlayin.
 6. `Execute as` degeri kendi hesabiniz olsun.
 7. Uretilen web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina yazin.
+8. Kod guncellediyseniz yeniden `Deploy > Manage deployments > Edit > Deploy` yapin.
+
+## Sorun Giderme
+
+- Hata: `Lutfen bir dosya secin.`
+  Bu hata genelde eski deployment kullanildiginda gorulur. `Code.gs` ve `upload.html` dosyalarini guncelleyip yeniden deploy edin.
 
 ## Ne yapar
 

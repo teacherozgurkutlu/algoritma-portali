@@ -21,7 +21,7 @@ function doGet(e) {
 }
 
 function uploadProject(formObject) {
-  const fileBlob = formObject.projectFile;
+  const fileBlob = extractUploadBlob_(formObject.projectFile);
   if (!fileBlob || typeof fileBlob.getBytes !== "function") {
     throw new Error("Lutfen bir dosya secin.");
   }
@@ -56,6 +56,19 @@ function uploadProject(formObject) {
     size: file.getSize(),
     uploadedAt: new Date().toISOString()
   };
+}
+
+function extractUploadBlob_(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value.getBytes === "function") {
+    return value;
+  }
+  if (Array.isArray(value) && value.length && typeof value[0].getBytes === "function") {
+    return value[0];
+  }
+  return null;
 }
 
 function persistProjectToFirestore_(requestId, formObject, file, projectTitle, description) {

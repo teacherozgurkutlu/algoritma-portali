@@ -1504,6 +1504,31 @@ function renderManagementDashboard(snapshot) {
       `).join("")
       : `<div class="empty-state">Atama yapilacak ogrenci bulunamadi.</div>`;
   }
+
+  const teacherEmailHost = document.getElementById("teacher-email-admin");
+  if (teacherEmailHost && isAdminRole(state.currentUser.role)) {
+    const approvedEmails = [...(snapshot.approvedTeacherEmails || [])].filter((email) => email !== "kutluozgur79@gmail.com");
+    teacherEmailHost.innerHTML = `
+      <form id="teacher-email-form" class="form-grid">
+        <label class="field">
+          <span>Yeni ogretmen e-postasi</span>
+          <input type="email" name="teacherEmail" placeholder="ornek@okul.k12.tr">
+        </label>
+        <div class="inline-actions">
+          <button class="button button-primary" type="submit">Ogretmen e-postasi ekle</button>
+        </div>
+        <p class="auth-message" id="teacher-email-status" aria-live="polite"></p>
+      </form>
+      <div class="summary-card-grid">
+        ${approvedEmails.length ? approvedEmails.map((email) => `
+          <article class="summary-card">
+            <h3>${escapeHtml(email)}</h3>
+            <p>Bu e-posta ile kayit olan kullanici ogretmen rolune gecer.</p>
+          </article>
+        `).join("") : `<div class="empty-state">Admin disinda tanimli ek ogretmen e-postasi yok.</div>`}
+      </div>
+    `;
+  }
 }
 
 function bindTeacherDashboardActions() {
@@ -1514,6 +1539,7 @@ function bindTeacherDashboardActions() {
   const jsonButton = document.getElementById("download-results");
   const csvButton = document.getElementById("download-results-csv");
   const assignmentHost = document.getElementById("assignment-board");
+  const teacherEmailHost = document.getElementById("teacher-email-admin");
 
   if (searchInput && !searchInput.dataset.bound) {
     searchInput.dataset.bound = "true";
@@ -1604,6 +1630,36 @@ function bindTeacherDashboardActions() {
         if (status) status.textContent = friendlyErrorMessage(error);
       } finally {
         button.disabled = false;
+      }
+    });
+  }
+
+  if (teacherEmailHost && !teacherEmailHost.dataset.bound) {
+    teacherEmailHost.dataset.bound = "true";
+    teacherEmailHost.addEventListener("submit", async (event) => {
+      const form = event.target.closest("#teacher-email-form");
+      if (!form) return;
+      event.preventDefault();
+
+      const status = document.getElementById("teacher-email-status");
+      const formData = new FormData(form);
+      const teacherEmail = String(formData.get("teacherEmail") || "").trim().toLowerCase();
+
+      if (!teacherEmail) {
+        if (status) status.textContent = "Gecerli bir e-posta girin.";
+        return;
+      }
+
+      if (status) status.textContent = "Kaydediliyor...";
+
+      try {
+        await state.dataLayer.saveApprovedTeacherEmail(teacherEmail, state.currentUser);
+        form.reset();
+        await loadManagementSnapshot(renderManagementDashboard);
+        const refreshedStatus = document.getElementById("teacher-email-status");
+        if (refreshedStatus) refreshedStatus.textContent = "Ogretmen e-postasi kaydedildi.";
+      } catch (error) {
+        if (status) status.textContent = friendlyErrorMessage(error);
       }
     });
   }

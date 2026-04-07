@@ -12,8 +12,19 @@ service cloud.firestore {
 
     function isApprovedTeacherEmail() {
       return isSignedIn() && request.auth.token.email in [
-        "kutluozgur79@gmail.com"
+        "kutluozgur79@gmail.com",
+        "ncheleby73@gmail.com",
+        "huseyincimen71@gmail.com",
+        "teacher@gmail.com"
       ];
+    }
+
+    function isTeacherWhitelisted() {
+      return isApprovedTeacherEmail() ||
+        (
+          isSignedIn() &&
+          exists(/databases/$(database)/documents/staffEmails/$(request.auth.token.email))
+        );
     }
 
     function currentRole() {
@@ -48,7 +59,7 @@ service cloud.firestore {
       allow create: if isOwner(userId) &&
         (
           request.resource.data.role == "student" ||
-          (request.resource.data.role in ["teacher", "admin"] && isApprovedTeacherEmail())
+          (request.resource.data.role in ["teacher", "admin"] && isTeacherWhitelisted())
         );
 
       allow update: if isAdmin() ||
@@ -62,6 +73,11 @@ service cloud.firestore {
         );
 
       allow delete: if false;
+    }
+
+    match /staffEmails/{emailId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isAdminBootstrapEmail();
     }
 
     match /quizzes/{quizId} {

@@ -1,6 +1,7 @@
 const STORAGE_KEYS = {
   users: "algoritmaPortaliUsers",
   session: "algoritmaPortaliSession",
+  staffEmails: "algoritmaPortaliStaffEmails",
   quizzes: "algoritmaPortaliQuizzes",
   attempts: "algoritmaPortaliAttempts",
   projects: "algoritmaPortaliProjects",
@@ -113,6 +114,18 @@ export function getApprovedTeacherEmails() {
   return [...emailSet];
 }
 
+function getStoredApprovedTeacherEmails() {
+  return readJson(STORAGE_KEYS.staffEmails, []).map((email) => normalizeEmail(email)).filter(Boolean);
+}
+
+function saveStoredApprovedTeacherEmails(emails) {
+  writeJson(STORAGE_KEYS.staffEmails, [...new Set(emails.map((email) => normalizeEmail(email)).filter(Boolean))]);
+}
+
+function getMergedApprovedTeacherEmails(extraEmails = []) {
+  return [...new Set([...getApprovedTeacherEmails(), ...extraEmails.map((email) => normalizeEmail(email)).filter(Boolean)])];
+}
+
 export function getGoogleDriveUploadConfig() {
   return {
     folderName: GOOGLE_DRIVE_UPLOAD_CONFIG.folderName || "bilsemprj",
@@ -130,7 +143,7 @@ function resolveRoleFromEmail(email) {
   if (normalized === normalizeEmail(ADMIN_CONFIG.email)) {
     return "admin";
   }
-  return getApprovedTeacherEmails().includes(normalized) ? "teacher" : "student";
+  return getMergedApprovedTeacherEmails(getStoredApprovedTeacherEmails()).includes(normalized) ? "teacher" : "student";
 }
 
 function createEmptyAssignment() {
@@ -274,6 +287,7 @@ function filterManagementSnapshot(snapshot, actor) {
   const studentIds = new Set(students.map((student) => student.id));
 
   return {
+    approvedTeacherEmails: snapshot.approvedTeacherEmails || [],
     teachers: (snapshot.teachers || []).filter((teacher) => teacher.id === actor.id),
     students,
     quizzes: (snapshot.quizzes || []).filter((quiz) => quiz.createdBy === actor.id),
@@ -349,7 +363,7 @@ function buildLocalDataLayer() {
     const users = getUsers();
     const now = new Date().toISOString();
 
-    getApprovedTeacherEmails().forEach((email) => {
+    getMergedApprovedTeacherEmails(getStoredApprovedTeacherEmails()).forEach((email) => {
       const role = resolveRoleFromEmail(email);
       const existing = users.find((user) => normalizeEmail(user.email) === email);
       const baseFields = {
@@ -396,6 +410,7 @@ function buildLocalDataLayer() {
   function buildManagementSnapshot() {
     const users = getUsers();
     return {
+      approvedTeacherEmails: getMergedApprovedTeacherEmails(getStoredApprovedTeacherEmails()),
       teachers: users.filter((user) => isStaffRole(user.role)).sort((left, right) => left.name.localeCompare(right.name, "tr")),
       students: users.filter((user) => user.role === "student").sort((left, right) => left.name.localeCompare(right.name, "tr")),
       quizzes: sortQuizzesNewestFirst(getQuizzes()),
@@ -449,6 +464,22 @@ function buildLocalDataLayer() {
     },
     async getCurrentUser() {
       return getCurrentUserFromSession();
+    },
+    async listApprovedTeacherEmails() {
+      return getMergedApprovedTeacherEmails(getStoredApprovedTeacherEmails());
+    },
+    async saveApprovedTeacherEmail(email, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen e-postasi ekleyebilir.");
+      }
+      const normalized = normalizeEmail(email);
+      if (!normalized) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+      const merged = getMergedApprovedTeacherEmails([...getStoredApprovedTeacherEmails(), normalized]);
+      saveStoredApprovedTeacherEmails(merged.filter((item) => item !== normalizeEmail(ADMIN_CONFIG.email)));
+      seedStaffAccounts();
+      return merged;
     },
     async saveQuiz(actor, payload) {
       if (!actor || !isStaffRole(actor.role)) {
@@ -704,8 +735,25 @@ async function buildFirebaseDataLayer() {
     return profileSnap.exists() ? mapUser(profileSnap) : null;
   }
 
+  async function getRemoteApprovedTeacherEmails() {
+    const snapshot = await getDocs(collection(db, "staffEmails"));
+    return snapshot.docs.map((item) => normalizeEmail(item.id)).filter(Boolean);
+  }
+
+  async function resolveRoleFromEmailRemote(email) {
+    const normalized = normalizeEmail(email);
+    if (normalized === normalizeEmail(ADMIN_CONFIG.email)) {
+      return "admin";
+    }
+    if (getApprovedTeacherEmails().includes(normalized)) {
+      return "teacher";
+    }
+    const staffDoc = await getDoc(doc(db, "staffEmails", normalized));
+    return staffDoc.exists() ? "teacher" : "student";
+  }
+
   async function upsertProfile(authUser, extra = {}) {
-    const role = resolveRoleFromEmail(authUser.email);
+    const role = await resolveRoleFromEmailRemote(authUser.email);
     const ref = doc(db, "users", authUser.uid);
     const snap = await getDoc(ref);
     const current = snap.exists() ? snap.data() : {};
@@ -790,6 +838,26 @@ async function buildFirebaseDataLayer() {
     },
     async getCurrentUser() {
       return auth.currentUser ? upsertProfile(auth.currentUser) : null;
+    },
+    async listApprovedTeacherEmails() {
+      return getMergedApprovedTeacherEmails(await getRemoteApprovedTeacherEmails());
+    },
+    async saveApprovedTeacherEmail(email, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen e-postasi ekleyebilir.");
+      }
+      const normalized = normalizeEmail(email);
+      if (!normalized) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+      await setDoc(doc(db, "staffEmails", normalized), {
+        email: normalized,
+        role: "teacher",
+        createdAt: serverTimestamp(),
+        createdBy: actor.id,
+        createdByName: actor.name
+      }, { merge: true });
+      return this.listApprovedTeacherEmails();
     },
     async saveQuiz(actor, payload) {
       if (!actor || !isStaffRole(actor.role)) {
@@ -1045,16 +1113,18 @@ async function buildFirebaseDataLayer() {
     },
     async getManagementSnapshot(actor) {
       if (isAdminRole(actor.role)) {
-        const [usersSnapshot, quizzesSnapshot, attemptsSnapshot, projectsSnapshot, messagesSnapshot] = await Promise.all([
+        const [usersSnapshot, quizzesSnapshot, attemptsSnapshot, projectsSnapshot, messagesSnapshot, staffEmails] = await Promise.all([
           getDocs(collection(db, "users")),
           getDocs(collection(db, "quizzes")),
           getDocs(collection(db, "attempts")),
           getDocs(collection(db, "projects")),
-          getDocs(collection(db, "messages"))
+          getDocs(collection(db, "messages")),
+          this.listApprovedTeacherEmails()
         ]);
 
         const users = usersSnapshot.docs.map(mapUser);
         return {
+          approvedTeacherEmails: staffEmails,
           teachers: users.filter((user) => isStaffRole(user.role)).sort((left, right) => left.name.localeCompare(right.name, "tr")),
           students: users.filter((user) => user.role === "student").sort((left, right) => left.name.localeCompare(right.name, "tr")),
           quizzes: sortQuizzesNewestFirst(quizzesSnapshot.docs.map(mapQuiz)),
@@ -1064,16 +1134,18 @@ async function buildFirebaseDataLayer() {
         };
       }
 
-      const [selfProfile, studentsSnapshot, quizzesSnapshot, attemptsSnapshot, projectsSnapshot, messagesSnapshot] = await Promise.all([
+      const [selfProfile, studentsSnapshot, quizzesSnapshot, attemptsSnapshot, projectsSnapshot, messagesSnapshot, staffEmails] = await Promise.all([
         fetchUserProfile(actor.id),
         getDocs(query(collection(db, "users"), where("assignedTeacherId", "==", actor.id))),
         getDocs(query(collection(db, "quizzes"), where("createdBy", "==", actor.id))),
         getDocs(query(collection(db, "attempts"), where("teacherId", "==", actor.id))),
         getDocs(query(collection(db, "projects"), where("teacherId", "==", actor.id))),
-        getDocs(query(collection(db, "messages"), where("teacherId", "==", actor.id)))
+        getDocs(query(collection(db, "messages"), where("teacherId", "==", actor.id))),
+        this.listApprovedTeacherEmails()
       ]);
 
       return {
+        approvedTeacherEmails: staffEmails,
         teachers: selfProfile ? [selfProfile] : [],
         students: studentsSnapshot.docs.map(mapUser).sort((left, right) => left.name.localeCompare(right.name, "tr")),
         quizzes: sortQuizzesNewestFirst(quizzesSnapshot.docs.map(mapQuiz)),
@@ -1084,10 +1156,11 @@ async function buildFirebaseDataLayer() {
     },
     subscribeManagementSnapshot(actor, callback, onError) {
       if (isAdminRole(actor.role)) {
-        const cache = { users: [], quizzes: [], attempts: [], projects: [], messages: [] };
+        const cache = { users: [], quizzes: [], attempts: [], projects: [], messages: [], staffEmails: [] };
         const publish = () => {
           const users = cache.users;
           callback({
+            approvedTeacherEmails: getMergedApprovedTeacherEmails(cache.staffEmails),
             teachers: users.filter((user) => isStaffRole(user.role)).sort((left, right) => left.name.localeCompare(right.name, "tr")),
             students: users.filter((user) => user.role === "student").sort((left, right) => left.name.localeCompare(right.name, "tr")),
             quizzes: sortQuizzesNewestFirst(cache.quizzes),
@@ -1098,6 +1171,7 @@ async function buildFirebaseDataLayer() {
         };
 
         const unsubscribeUsers = subscribeWorkspace(collection(db, "users"), mapUser, (items) => { cache.users = items; }, publish, onError);
+        const unsubscribeStaffEmails = subscribeWorkspace(collection(db, "staffEmails"), (item) => normalizeEmail(item.id), (items) => { cache.staffEmails = items; }, publish, onError);
         const unsubscribeQuizzes = subscribeWorkspace(collection(db, "quizzes"), mapQuiz, (items) => { cache.quizzes = items; }, publish, onError);
         const unsubscribeAttempts = subscribeWorkspace(collection(db, "attempts"), mapAttempt, (items) => { cache.attempts = items; }, publish, onError);
         const unsubscribeProjects = subscribeWorkspace(collection(db, "projects"), mapProject, (items) => { cache.projects = items; }, publish, onError);
@@ -1105,6 +1179,7 @@ async function buildFirebaseDataLayer() {
 
         return () => {
           unsubscribeUsers();
+          unsubscribeStaffEmails();
           unsubscribeQuizzes();
           unsubscribeAttempts();
           unsubscribeProjects();
@@ -1112,9 +1187,10 @@ async function buildFirebaseDataLayer() {
         };
       }
 
-      const cache = { teacher: null, students: [], quizzes: [], attempts: [], projects: [], messages: [] };
+      const cache = { teacher: null, students: [], quizzes: [], attempts: [], projects: [], messages: [], staffEmails: [] };
       const publish = () => {
         callback({
+          approvedTeacherEmails: getMergedApprovedTeacherEmails(cache.staffEmails),
           teachers: cache.teacher ? [cache.teacher] : [],
           students: [...cache.students].sort((left, right) => left.name.localeCompare(right.name, "tr")),
           quizzes: sortQuizzesNewestFirst(cache.quizzes),
@@ -1132,6 +1208,7 @@ async function buildFirebaseDataLayer() {
         },
         onError
       );
+      const unsubscribeStaffEmails = subscribeWorkspace(collection(db, "staffEmails"), (item) => normalizeEmail(item.id), (items) => { cache.staffEmails = items; }, publish, onError);
 
       const unsubscribeStudents = subscribeWorkspace(
         query(collection(db, "users"), where("assignedTeacherId", "==", actor.id)),
@@ -1175,6 +1252,7 @@ async function buildFirebaseDataLayer() {
 
       return () => {
         unsubscribeTeacher();
+        unsubscribeStaffEmails();
         unsubscribeStudents();
         unsubscribeQuizzes();
         unsubscribeAttempts();

@@ -12,7 +12,10 @@ window.PORTAL_CONFIG = {
   },
   firebase: {
     teacherEmails: [
-      "kutluozgur79@gmail.com"
+      "kutluozgur79@gmail.com",
+      "ncheleby73@gmail.com",
+      "huseyincimen71@gmail.com",
+      "teacher@gmail.com"
     ],
     config: {
       apiKey: "AIzaSyBKX4_Xqc45SjwnoAivJkEL7dGnaYwxyMM",

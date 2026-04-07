@@ -679,6 +679,55 @@ function buildLocalDataLayer() {
       });
       saveMessages(messages);
     },
+    async clearAssignmentsForTeacherEmail(teacherEmail, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin atama temizleyebilir.");
+      }
+      const normalized = normalizeEmail(teacherEmail);
+      if (!normalized) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+
+      const users = getUsers();
+      users.forEach((user) => {
+        if (user.role === "student" && normalizeEmail(user.assignedTeacherEmail) === normalized) {
+          user.assignedTeacherId = null;
+          user.assignedTeacherName = "";
+          user.assignedTeacherEmail = "";
+        }
+      });
+      saveUsers(users);
+
+      const attempts = getAttempts();
+      attempts.forEach((attempt) => {
+        if (normalizeEmail(attempt.teacherEmail) === normalized) {
+          attempt.teacherId = null;
+          attempt.teacherName = "";
+          attempt.teacherEmail = "";
+        }
+      });
+      saveAttempts(attempts);
+
+      const projects = getProjects();
+      projects.forEach((project) => {
+        if (normalizeEmail(project.teacherEmail) === normalized) {
+          project.teacherId = null;
+          project.teacherName = "";
+          project.teacherEmail = "";
+        }
+      });
+      saveProjects(projects);
+
+      const messages = getMessages();
+      messages.forEach((message) => {
+        if (normalizeEmail(message.teacherEmail) === normalized) {
+          message.teacherId = null;
+          message.teacherName = "";
+          message.teacherEmail = "";
+        }
+      });
+      saveMessages(messages);
+    },
     async getManagementSnapshot(actor) {
       return filterManagementSnapshot(buildManagementSnapshot(), actor);
     },
@@ -1202,6 +1251,44 @@ async function buildFirebaseDataLayer() {
           teacherName: teacher?.name || "",
           teacherEmail: teacher?.email || ""
         });
+      });
+
+      await batch.commit();
+    },
+    async clearAssignmentsForTeacherEmail(teacherEmail, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin atama temizleyebilir.");
+      }
+      const normalized = normalizeEmail(teacherEmail);
+      if (!normalized) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+
+      const batch = writeBatch(db);
+      const usersSnapshot = await getDocs(query(collection(db, "users"), where("assignedTeacherEmail", "==", normalized)));
+      usersSnapshot.docs.forEach((item) => {
+        batch.update(item.ref, {
+          assignedTeacherId: null,
+          assignedTeacherName: "",
+          assignedTeacherEmail: "",
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      const [attemptsSnapshot, projectsSnapshot, messagesSnapshot] = await Promise.all([
+        getDocs(query(collection(db, "attempts"), where("teacherEmail", "==", normalized))),
+        getDocs(query(collection(db, "projects"), where("teacherEmail", "==", normalized))),
+        getDocs(query(collection(db, "messages"), where("teacherEmail", "==", normalized)))
+      ]);
+
+      attemptsSnapshot.docs.forEach((item) => {
+        batch.update(item.ref, { teacherId: null, teacherName: "", teacherEmail: "" });
+      });
+      projectsSnapshot.docs.forEach((item) => {
+        batch.update(item.ref, { teacherId: null, teacherName: "", teacherEmail: "" });
+      });
+      messagesSnapshot.docs.forEach((item) => {
+        batch.update(item.ref, { teacherId: null, teacherName: "", teacherEmail: "" });
       });
 
       await batch.commit();

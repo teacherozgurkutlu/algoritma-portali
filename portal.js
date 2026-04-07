@@ -11,7 +11,7 @@ import {
   isGoogleDriveUploadConfigured,
   isStaffRole,
   isTeacherRole
-} from "./portal-data.js?v=20260407-2";
+} from "./portal-data.js?v=20260407-3";
 
 const state = {
   dataLayer: null,
@@ -132,6 +132,75 @@ function buildAssignmentTargets(snapshot) {
   });
 
   return [...byEmail.values()].sort((left, right) => left.name.localeCompare(right.name, "tr"));
+}
+
+function applyStudentAssignmentToSnapshot(snapshot, studentId, teacher) {
+  if (!snapshot) return;
+  const teacherId = teacher?.id || null;
+  const teacherName = teacher?.name || "";
+  const teacherEmail = teacher?.email || "";
+
+  (snapshot.students || []).forEach((student) => {
+    if (student.id !== studentId) return;
+    student.assignedTeacherId = teacherId;
+    student.assignedTeacherName = teacherName;
+    student.assignedTeacherEmail = teacherEmail;
+  });
+
+  (snapshot.attempts || []).forEach((attempt) => {
+    if (attempt.userId !== studentId) return;
+    attempt.teacherId = teacherId;
+    attempt.teacherName = teacherName;
+    attempt.teacherEmail = teacherEmail;
+  });
+
+  (snapshot.projects || []).forEach((project) => {
+    if (project.userId !== studentId) return;
+    project.teacherId = teacherId;
+    project.teacherName = teacherName;
+    project.teacherEmail = teacherEmail;
+  });
+
+  (snapshot.messages || []).forEach((message) => {
+    if (message.studentId !== studentId) return;
+    message.teacherId = teacherId;
+    message.teacherName = teacherName;
+    message.teacherEmail = teacherEmail;
+  });
+}
+
+function clearTeacherAssignmentsInSnapshot(snapshot, teacherEmail) {
+  if (!snapshot) return;
+  const normalized = normalizeText(teacherEmail);
+  if (!normalized) return;
+
+  (snapshot.students || []).forEach((student) => {
+    if (normalizeText(student.assignedTeacherEmail) !== normalized) return;
+    student.assignedTeacherId = null;
+    student.assignedTeacherName = "";
+    student.assignedTeacherEmail = "";
+  });
+
+  (snapshot.attempts || []).forEach((attempt) => {
+    if (normalizeText(attempt.teacherEmail) !== normalized) return;
+    attempt.teacherId = null;
+    attempt.teacherName = "";
+    attempt.teacherEmail = "";
+  });
+
+  (snapshot.projects || []).forEach((project) => {
+    if (normalizeText(project.teacherEmail) !== normalized) return;
+    project.teacherId = null;
+    project.teacherName = "";
+    project.teacherEmail = "";
+  });
+
+  (snapshot.messages || []).forEach((message) => {
+    if (normalizeText(message.teacherEmail) !== normalized) return;
+    message.teacherId = null;
+    message.teacherName = "";
+    message.teacherEmail = "";
+  });
 }
 
 function homePathForUser(user) {
@@ -1577,6 +1646,10 @@ function renderManagementDashboard(snapshot) {
             <div class="summary-metrics">
               <span>${assignedCount} ogrenci</span>
             </div>
+            <div class="inline-actions">
+              <button class="button button-secondary" type="button" data-clear-assignments-email="${escapeHtml(email)}">Bu ogretmenin atamalarini temizle</button>
+            </div>
+            <p class="inline-note" data-clear-assignments-status="${escapeHtml(email)}"></p>
           </article>
         `;
         }).join("") : `<div class="empty-state">Admin disinda tanimli ek ogretmen e-postasi yok.</div>`}
@@ -1676,9 +1749,17 @@ function bindTeacherDashboardActions() {
       if (status) status.textContent = "Kaydediliyor...";
 
       try {
-        await state.dataLayer.saveStudentAssignment(studentId, select?.value || "", state.currentUser);
-        await loadManagementSnapshot(renderManagementDashboard);
-        const refreshedStatus = assignmentHost.querySelector(`[data-assignment-status="${studentId}"]`);
+        const selectedValue = String(select?.value || "");
+        await state.dataLayer.saveStudentAssignment(studentId, selectedValue, state.currentUser);
+        const targets = buildAssignmentTargets(state.managementSnapshot || {});
+        const selectedTeacher = targets.find((item) => item.value === selectedValue) || null;
+        applyStudentAssignmentToSnapshot(state.managementSnapshot, studentId, {
+          id: selectedTeacher?.userId || null,
+          name: selectedTeacher?.name || "",
+          email: selectedTeacher?.email || ""
+        });
+        renderManagementDashboard(state.managementSnapshot);
+        const refreshedStatus = document.querySelector(`[data-assignment-status="${studentId}"]`);
         if (refreshedStatus) refreshedStatus.textContent = "Atama kaydedildi.";
       } catch (error) {
         if (status) status.textContent = friendlyErrorMessage(error);
@@ -1708,12 +1789,40 @@ function bindTeacherDashboardActions() {
 
       try {
         await state.dataLayer.saveApprovedTeacherEmail(teacherEmail, state.currentUser);
+        if (state.managementSnapshot && !((state.managementSnapshot.approvedTeacherEmails || []).includes(teacherEmail))) {
+          state.managementSnapshot.approvedTeacherEmails = [...(state.managementSnapshot.approvedTeacherEmails || []), teacherEmail];
+          renderManagementDashboard(state.managementSnapshot);
+        }
         form.reset();
-        await loadManagementSnapshot(renderManagementDashboard);
         const refreshedStatus = document.getElementById("teacher-email-status");
         if (refreshedStatus) refreshedStatus.textContent = "Ogretmen e-postasi kaydedildi.";
       } catch (error) {
         if (status) status.textContent = friendlyErrorMessage(error);
+      }
+    });
+
+    teacherEmailHost.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-clear-assignments-email]");
+      if (!button) return;
+
+      const teacherEmail = String(button.getAttribute("data-clear-assignments-email") || "").trim().toLowerCase();
+      const status = teacherEmailHost.querySelector(`[data-clear-assignments-status="${teacherEmail}"]`);
+      if (!teacherEmail) return;
+      if (!window.confirm(`${teacherEmail} icin mevcut ogrenci atamalarini temizlemek istiyor musunuz?`)) return;
+
+      button.disabled = true;
+      if (status) status.textContent = "Temizleniyor...";
+
+      try {
+        await state.dataLayer.clearAssignmentsForTeacherEmail(teacherEmail, state.currentUser);
+        clearTeacherAssignmentsInSnapshot(state.managementSnapshot, teacherEmail);
+        renderManagementDashboard(state.managementSnapshot);
+        const refreshedStatus = document.querySelector(`[data-clear-assignments-status="${teacherEmail}"]`);
+        if (refreshedStatus) refreshedStatus.textContent = "Atamalar temizlendi.";
+      } catch (error) {
+        if (status) status.textContent = friendlyErrorMessage(error);
+      } finally {
+        button.disabled = false;
       }
     });
   }

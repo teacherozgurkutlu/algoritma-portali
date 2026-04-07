@@ -111,7 +111,8 @@ service cloud.firestore {
           resource.data.teacherEmail == request.auth.token.email
         )) ||
         (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow update, delete: if false;
+      allow update: if isAdmin() || isAdminBootstrapEmail();
+      allow delete: if false;
     }
 
     match /projects/{projectId} {
@@ -148,7 +149,8 @@ service cloud.firestore {
           resource.data.teacherEmail == request.auth.token.email
         )) ||
         (isSignedIn() && resource.data.studentId == request.auth.uid);
-      allow update, delete: if false;
+      allow update: if isAdmin() || isAdminBootstrapEmail();
+      allow delete: if false;
     }
   }
 }

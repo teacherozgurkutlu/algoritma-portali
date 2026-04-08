@@ -69,45 +69,64 @@ body::after {
 .site-header {
   position: relative;
   display: grid;
-  justify-items: center;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "brand session"
+    "nav nav";
+  align-items: center;
+  gap: 14px 18px;
   padding: 22px 24px 16px;
   margin-bottom: 28px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  background: var(--surface);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.96), rgba(255, 251, 238, 0.92)),
+    var(--surface);
   backdrop-filter: blur(10px);
   box-shadow: var(--shadow);
 }
 
 .brand,
 .brand:visited {
+  grid-area: brand;
   display: block;
   width: 100%;
-  max-width: calc(100% - 360px);
   color: var(--ink);
   text-decoration: none;
   font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-size: clamp(1.65rem, 3vw, 2.3rem);
   font-weight: 800;
   line-height: 1.1;
-  text-align: center;
+  text-align: left;
+  letter-spacing: -0.015em;
 }
 
 .site-nav {
+  grid-area: nav;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .header-session {
-  position: absolute;
-  top: 12px;
-  right: 16px;
+  grid-area: session;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  justify-self: end;
+}
+
+.header-session .status-pill {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .auth-tabs-card {
@@ -571,6 +590,73 @@ body::after {
   margin: 12px 0 0;
   font-weight: 800;
   color: var(--teal);
+}
+
+.forgot-password-inline {
+  margin-top: 12px;
+}
+
+.auth-link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--teal);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-link-button:hover {
+  opacity: 0.85;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(13, 22, 32, 0.42);
+  backdrop-filter: blur(4px);
+}
+
+.modal-card {
+  width: min(560px, 100%);
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.modal-head h2 {
+  margin: 0;
+}
+
+.modal-close-button {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.modal-close-button:hover {
+  background: rgba(31, 154, 165, 0.1);
 }
 
 .success-message {
@@ -1116,21 +1202,27 @@ body::after {
   }
 
   .site-header {
-    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "brand"
+      "session"
+      "nav";
+    justify-items: stretch;
   }
 
   .site-nav {
     justify-content: center;
+    border-radius: var(--radius-lg);
   }
 
   .header-session {
-    position: static;
-    justify-self: end;
+    justify-self: start;
   }
 
   .brand,
   .brand:visited {
     max-width: 100%;
+    text-align: center;
   }
 
   .split-card {
@@ -1162,5 +1254,14 @@ body::after {
   .hero-text h1,
   .page-intro h1 {
     line-height: 1;
+  }
+
+  .header-session {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .header-session .status-pill {
+    max-width: calc(100% - 140px);
   }
 }

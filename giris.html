@@ -63,14 +63,9 @@
               <button class="button button-primary" type="submit">Oturum Ac</button>
             </form>
             <p class="auth-message" id="login-message" aria-live="polite"></p>
-            <form id="forgot-password-form" class="form-grid">
-              <label class="field">
-                <span>Sifremi unuttum</span>
-                <input type="email" name="email" placeholder="Kayitli e-posta adresiniz">
-              </label>
-              <button class="button button-secondary" type="submit">Sifirlama linki gonder</button>
-            </form>
-            <p class="auth-message" id="forgot-password-message" aria-live="polite"></p>
+            <div class="forgot-password-inline">
+              <button class="auth-link-button" type="button" id="forgot-password-open">Sifremi unuttum</button>
+            </div>
           </section>
 
           <section data-auth-panel="register" hidden>
@@ -101,6 +96,23 @@
 
       <section id="teacher-login-note" hidden></section>
     </main>
+
+    <section id="forgot-password-modal" class="modal-overlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="forgot-password-title">
+        <div class="modal-head">
+          <h2 id="forgot-password-title">Sifre Sifirlama</h2>
+          <button class="modal-close-button" type="button" id="forgot-password-close" aria-label="Kapat">Kapat</button>
+        </div>
+        <form id="forgot-password-form" class="form-grid">
+          <label class="field">
+            <span>Kayitli e-posta</span>
+            <input type="email" name="email" placeholder="Kayitli e-posta adresiniz">
+          </label>
+          <button class="button button-secondary" type="submit">Sifirlama linki gonder</button>
+        </form>
+        <p class="auth-message" id="forgot-password-message" aria-live="polite"></p>
+      </div>
+    </section>
 
     <footer class="site-footer">
       <p>Giris sonrasi rolunuze uygun ekrana otomatik yonlendirilirsiniz.</p>

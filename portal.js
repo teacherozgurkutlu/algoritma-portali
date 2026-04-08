@@ -1084,6 +1084,9 @@ function bindLoginPage() {
 
   const loginForm = document.getElementById("login-form");
   const forgotPasswordForm = document.getElementById("forgot-password-form");
+  const forgotPasswordOpen = document.getElementById("forgot-password-open");
+  const forgotPasswordModal = document.getElementById("forgot-password-modal");
+  const forgotPasswordClose = document.getElementById("forgot-password-close");
   const registerForm = document.getElementById("register-form");
   const loginMessage = document.getElementById("login-message");
   const forgotPasswordMessage = document.getElementById("forgot-password-message");
@@ -1115,6 +1118,40 @@ function bindLoginPage() {
     activeSession.innerHTML = `
       <div class="auth-message success-message">Acik oturum: <strong>${escapeHtml(state.currentUser.name)}</strong> - ${escapeHtml(roleLabel(state.currentUser.role))}</div>
     `;
+  }
+
+  const closeForgotPasswordModal = () => {
+    if (!forgotPasswordModal) return;
+    forgotPasswordModal.hidden = true;
+  };
+
+  const openForgotPasswordModal = () => {
+    if (!forgotPasswordModal) return;
+    forgotPasswordModal.hidden = false;
+    const emailInput = forgotPasswordForm?.querySelector('input[name="email"]');
+    emailInput?.focus();
+  };
+
+  if (forgotPasswordOpen && !forgotPasswordOpen.dataset.bound) {
+    forgotPasswordOpen.dataset.bound = "true";
+    forgotPasswordOpen.addEventListener("click", openForgotPasswordModal);
+  }
+
+  if (forgotPasswordClose && !forgotPasswordClose.dataset.bound) {
+    forgotPasswordClose.dataset.bound = "true";
+    forgotPasswordClose.addEventListener("click", closeForgotPasswordModal);
+  }
+
+  if (forgotPasswordModal && !forgotPasswordModal.dataset.bound) {
+    forgotPasswordModal.dataset.bound = "true";
+    forgotPasswordModal.addEventListener("click", (event) => {
+      if (event.target === forgotPasswordModal) closeForgotPasswordModal();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !forgotPasswordModal.hidden) {
+        closeForgotPasswordModal();
+      }
+    });
   }
 
   if (loginForm && !loginForm.dataset.bound) {
@@ -1149,6 +1186,7 @@ function bindLoginPage() {
         await state.dataLayer.sendPasswordResetEmail(email);
         if (forgotPasswordMessage) forgotPasswordMessage.textContent = "Sifre sifirlama linki gonderildi.";
         forgotPasswordForm.reset();
+        closeForgotPasswordModal();
       } catch (error) {
         if (forgotPasswordMessage) forgotPasswordMessage.textContent = friendlyErrorMessage(error);
       }

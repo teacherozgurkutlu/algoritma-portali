@@ -248,6 +248,7 @@ function updateRoleBasedNavigation() {
 
 function renderSessionBadges() {
   updateRoleBasedNavigation();
+  const isLoginPage = Boolean(document.querySelector("[data-login-page]"));
 
   document.querySelectorAll("[data-session-status]").forEach((node) => {
     node.innerHTML = "";
@@ -255,6 +256,10 @@ function renderSessionBadges() {
 
   document.querySelectorAll("[data-header-session]").forEach((node) => {
     if (!state.currentUser) {
+      if (isLoginPage) {
+        node.innerHTML = "";
+        return;
+      }
       node.innerHTML = `<a class="button button-secondary" href="giris.html">Giris Yap</a>`;
       return;
     }

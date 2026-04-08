@@ -71,8 +71,8 @@ body::after {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "brand session"
-    "nav nav";
+    "brand brand"
+    "nav session";
   align-items: center;
   gap: 14px 18px;
   padding: 22px 24px 16px;
@@ -97,7 +97,7 @@ body::after {
   font-size: clamp(1.65rem, 3vw, 2.3rem);
   font-weight: 800;
   line-height: 1.1;
-  text-align: left;
+  text-align: center;
   letter-spacing: -0.015em;
 }
 
@@ -111,6 +111,7 @@ body::after {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
+  justify-self: start;
 }
 
 .header-session {
@@ -1205,8 +1206,8 @@ body::after {
     grid-template-columns: 1fr;
     grid-template-areas:
       "brand"
-      "session"
-      "nav";
+      "nav"
+      "session";
     justify-items: stretch;
   }
 
@@ -1216,7 +1217,7 @@ body::after {
   }
 
   .header-session {
-    justify-self: start;
+    justify-self: end;
   }
 
   .brand,

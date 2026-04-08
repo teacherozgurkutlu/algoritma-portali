@@ -66,6 +66,9 @@ function friendlyErrorMessage(error) {
   if (text.includes("auth/invalid-credential") || text.includes("auth/wrong-password") || text.includes("auth/user-not-found")) {
     return "E-posta veya sifre hatali.";
   }
+  if (text.includes("FIREBASE_TEACHER_PASSWORD_UPDATE_REQUIRES_BACKEND")) {
+    return "Firebase modunda panelden dogrudan sifre degistirmek icin Firebase Admin SDK kullanan bir backend/Cloud Function gerekir.";
+  }
   if (text.includes("UPLOAD_NOT_CONFIGURED")) {
     return "Google Drive yukleme koprusu henuz ayarlanmadi.";
   }
@@ -1675,11 +1678,23 @@ function renderManagementDashboard(snapshot) {
     teacherEmailHost.innerHTML = `
       <form id="teacher-email-form" class="form-grid">
         <label class="field">
+          <span>Ogretmen adi</span>
+          <input type="text" name="teacherName" placeholder="Ornek: Ayse Yilmaz">
+        </label>
+        <label class="field">
           <span>Yeni ogretmen e-postasi</span>
           <input type="email" name="teacherEmail" placeholder="ornek@okul.k12.tr">
         </label>
+        <label class="field">
+          <span>Ogretmen sifresi</span>
+          <input type="password" name="teacherPassword" placeholder="${isFirebaseModeConfigured() ? "En az 6 karakter" : "En az 4 karakter"}">
+        </label>
+        <label class="field">
+          <span>Birim / Sinif (opsiyonel)</span>
+          <input type="text" name="teacherClassName" placeholder="BILSEM">
+        </label>
         <div class="inline-actions">
-          <button class="button button-primary" type="submit">Ogretmen e-postasi ekle</button>
+          <button class="button button-primary" type="submit">Ogretmen hesabi olustur</button>
         </div>
         <p class="auth-message" id="teacher-email-status" aria-live="polite"></p>
       </form>
@@ -1689,14 +1704,19 @@ function renderManagementDashboard(snapshot) {
           return `
           <article class="summary-card">
             <h3>${escapeHtml(email)}</h3>
-            <p>Bu e-posta ile kayit olan kullanici ogretmen rolune gecer.</p>
+            <p>Bu e-posta yonetim panelinden olusturulan ogretmen hesabina aittir.</p>
             <div class="summary-metrics">
               <span>${assignedCount} ogrenci</span>
+            </div>
+            <div class="inline-actions">
+              <input type="password" data-teacher-password-input="${escapeHtml(email)}" placeholder="${isFirebaseModeConfigured() ? "Yeni sifre (min 6)" : "Yeni sifre (min 4)"}">
+              <button class="button button-secondary" type="button" data-update-teacher-password="${escapeHtml(email)}">Sifreyi guncelle</button>
             </div>
             <div class="inline-actions">
               <button class="button button-secondary" type="button" data-clear-assignments-email="${escapeHtml(email)}">Bu ogretmenin atamalarini temizle</button>
               <button class="button button-secondary" type="button" data-remove-teacher-email="${escapeHtml(email)}">Ogretmen e-postasini sil</button>
             </div>
+            <p class="inline-note" data-update-teacher-password-status="${escapeHtml(email)}"></p>
             <p class="inline-note" data-clear-assignments-status="${escapeHtml(email)}"></p>
             <p class="inline-note" data-remove-teacher-status="${escapeHtml(email)}"></p>
           </article>
@@ -1828,32 +1848,71 @@ function bindTeacherDashboardActions() {
       const status = document.getElementById("teacher-email-status");
       const formData = new FormData(form);
       const teacherEmail = String(formData.get("teacherEmail") || "").trim().toLowerCase();
+      const teacherPassword = String(formData.get("teacherPassword") || "").trim();
+      const teacherName = String(formData.get("teacherName") || "").trim();
+      const teacherClassName = String(formData.get("teacherClassName") || "").trim();
 
       if (!teacherEmail) {
         if (status) status.textContent = "Gecerli bir e-posta girin.";
+        return;
+      }
+      if (!teacherPassword) {
+        if (status) status.textContent = "Ogretmen sifresini girin.";
         return;
       }
 
       if (status) status.textContent = "Kaydediliyor...";
 
       try {
-        await state.dataLayer.saveApprovedTeacherEmail(teacherEmail, state.currentUser);
-        if (state.managementSnapshot && !((state.managementSnapshot.approvedTeacherEmails || []).includes(teacherEmail))) {
-          state.managementSnapshot.approvedTeacherEmails = [...(state.managementSnapshot.approvedTeacherEmails || []), teacherEmail];
-          renderManagementDashboard(state.managementSnapshot);
-        }
+        await state.dataLayer.createTeacherAccount({
+          email: teacherEmail,
+          password: teacherPassword,
+          name: teacherName,
+          className: teacherClassName
+        }, state.currentUser);
+        state.managementSnapshot = await state.dataLayer.getManagementSnapshot(state.currentUser);
+        renderManagementDashboard(state.managementSnapshot);
         form.reset();
         const refreshedStatus = document.getElementById("teacher-email-status");
-        if (refreshedStatus) refreshedStatus.textContent = "Ogretmen e-postasi kaydedildi.";
+        if (refreshedStatus) refreshedStatus.textContent = "Ogretmen hesabi olusturuldu.";
       } catch (error) {
         if (status) status.textContent = friendlyErrorMessage(error);
       }
     });
 
     teacherEmailHost.addEventListener("click", async (event) => {
+      const updatePasswordButton = event.target.closest("[data-update-teacher-password]");
       const clearButton = event.target.closest("[data-clear-assignments-email]");
       const removeButton = event.target.closest("[data-remove-teacher-email]");
-      if (!clearButton && !removeButton) return;
+      if (!updatePasswordButton && !clearButton && !removeButton) return;
+
+      if (updatePasswordButton) {
+        const teacherEmail = String(updatePasswordButton.getAttribute("data-update-teacher-password") || "").trim().toLowerCase();
+        const input = teacherEmailHost.querySelector(`[data-teacher-password-input="${teacherEmail}"]`);
+        const status = teacherEmailHost.querySelector(`[data-update-teacher-password-status="${teacherEmail}"]`);
+        const nextPassword = String(input?.value || "").trim();
+
+        if (!teacherEmail) return;
+        if (!nextPassword) {
+          if (status) status.textContent = "Yeni sifreyi girin.";
+          return;
+        }
+
+        updatePasswordButton.disabled = true;
+        if (status) status.textContent = "Guncelleniyor...";
+
+        try {
+          await state.dataLayer.updateTeacherPassword({ email: teacherEmail, password: nextPassword }, state.currentUser);
+          if (input) input.value = "";
+          const refreshedStatus = document.querySelector(`[data-update-teacher-password-status="${teacherEmail}"]`);
+          if (refreshedStatus) refreshedStatus.textContent = "Ogretmen sifresi guncellendi.";
+        } catch (error) {
+          if (status) status.textContent = friendlyErrorMessage(error);
+        } finally {
+          updatePasswordButton.disabled = false;
+        }
+        return;
+      }
 
       if (clearButton) {
         const teacherEmail = String(clearButton.getAttribute("data-clear-assignments-email") || "").trim().toLowerCase();

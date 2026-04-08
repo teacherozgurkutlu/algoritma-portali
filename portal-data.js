@@ -450,6 +450,9 @@ function buildLocalDataLayer() {
       }
 
       const role = resolveRoleFromEmail(email);
+      if (role !== "student") {
+        throw new Error("Ogretmen ve admin hesaplari sadece yonetim panelinden olusturulur.");
+      }
       const user = {
         id: createId(role),
         role,
@@ -495,6 +498,73 @@ function buildLocalDataLayer() {
       saveStoredApprovedTeacherEmails(merged.filter((item) => item !== normalizeEmail(ADMIN_CONFIG.email)));
       seedStaffAccounts();
       return merged;
+    },
+    async createTeacherAccount(payload, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen hesabi olusturabilir.");
+      }
+
+      const email = normalizeEmail(payload?.email);
+      const password = String(payload?.password || "").trim();
+      const name = String(payload?.name || "").trim();
+      const className = String(payload?.className || "").trim() || "BILSEM";
+
+      if (!email) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+      if (email === normalizeEmail(ADMIN_CONFIG.email)) {
+        throw new Error("Admin e-postasi ogretmen hesabina donusturulemez.");
+      }
+      if (password.length < 4) {
+        throw new Error("Yerel modda ogretmen sifresi en az 4 karakter olmali.");
+      }
+
+      const users = getUsers();
+      if (users.some((user) => normalizeEmail(user.email) === email)) {
+        throw new Error("Bu e-posta zaten kayitli.");
+      }
+
+      const merged = getMergedApprovedTeacherEmails([...getStoredApprovedTeacherEmails(), email]);
+      saveStoredApprovedTeacherEmails(merged.filter((item) => item !== normalizeEmail(ADMIN_CONFIG.email)));
+
+      const user = {
+        id: createId("teacher"),
+        role: "teacher",
+        name: name || prettifyEmailName(email) || "Ogretmen",
+        className,
+        email,
+        password,
+        createdAt: new Date().toISOString(),
+        ...createEmptyAssignment()
+      };
+
+      users.push(user);
+      saveUsers(users);
+      return user;
+    },
+    async updateTeacherPassword(payload, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen sifresi guncelleyebilir.");
+      }
+
+      const email = normalizeEmail(payload?.email);
+      const password = String(payload?.password || "").trim();
+      if (!email) {
+        throw new Error("Gecerli bir ogretmen e-postasi girin.");
+      }
+      if (password.length < 4) {
+        throw new Error("Yerel modda ogretmen sifresi en az 4 karakter olmali.");
+      }
+
+      const users = getUsers();
+      const teacher = users.find((user) => normalizeEmail(user.email) === email && isStaffRole(user.role) && !isAdminRole(user.role));
+      if (!teacher) {
+        throw new Error("Sifresi guncellenecek ogretmen bulunamadi.");
+      }
+
+      teacher.password = password;
+      saveUsers(users);
+      return { email, updated: true };
     },
     async removeApprovedTeacherEmail(email, actor) {
       if (!actor || !isAdminRole(actor.role)) {
@@ -758,7 +828,7 @@ async function buildFirebaseDataLayer() {
     import("https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js")
   ]);
 
-  const { initializeApp } = appModule;
+  const { initializeApp, getApps, deleteApp } = appModule;
   const { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } = authModule;
   const {
     getFirestore,
@@ -912,7 +982,12 @@ async function buildFirebaseDataLayer() {
       return resolveCurrentUser();
     },
     async registerUser(payload) {
-      const credential = await createUserWithEmailAndPassword(auth, normalizeEmail(payload.email), payload.password);
+      const email = normalizeEmail(payload.email);
+      const role = await resolveRoleFromEmailRemote(email);
+      if (role !== "student") {
+        throw new Error("Ogretmen ve admin hesaplari sadece yonetim panelinden olusturulur.");
+      }
+      const credential = await createUserWithEmailAndPassword(auth, email, payload.password);
       await updateProfile(credential.user, { displayName: String(payload.name || "").trim() });
       return upsertProfile(credential.user, {
         name: String(payload.name || "").trim(),
@@ -948,6 +1023,91 @@ async function buildFirebaseDataLayer() {
         createdByName: actor.name
       }, { merge: true });
       return this.listApprovedTeacherEmails();
+    },
+    async createTeacherAccount(payload, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen hesabi olusturabilir.");
+      }
+
+      const email = normalizeEmail(payload?.email);
+      const password = String(payload?.password || "").trim();
+      const name = String(payload?.name || "").trim();
+      const className = String(payload?.className || "").trim() || "BILSEM";
+
+      if (!email) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+      if (email === normalizeEmail(ADMIN_CONFIG.email)) {
+        throw new Error("Admin e-postasi ogretmen hesabina donusturulemez.");
+      }
+      if (password.length < 6) {
+        throw new Error("Firebase modunda ogretmen sifresi en az 6 karakter olmali.");
+      }
+
+      await setDoc(doc(db, "staffEmails", email), {
+        email,
+        role: "teacher",
+        createdAt: serverTimestamp(),
+        createdBy: actor.id,
+        createdByName: actor.name
+      }, { merge: true });
+
+      const appName = `teacher-provision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const secondaryApp = initializeApp(FIREBASE_CONFIG.config, appName);
+      const secondaryAuth = getAuth(secondaryApp);
+      const secondaryDb = getFirestore(secondaryApp);
+
+      try {
+        const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+        await updateProfile(credential.user, { displayName: name || prettifyEmailName(email) || "Ogretmen" });
+
+        await setDoc(doc(secondaryDb, "users", credential.user.uid), {
+          uid: credential.user.uid,
+          email,
+          name: name || prettifyEmailName(email) || "Ogretmen",
+          className,
+          role: "teacher",
+          assignedTeacherId: null,
+          assignedTeacherName: "",
+          assignedTeacherEmail: "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        return {
+          id: credential.user.uid,
+          email,
+          name: name || prettifyEmailName(email) || "Ogretmen",
+          className,
+          role: "teacher"
+        };
+      } finally {
+        try {
+          await signOut(secondaryAuth);
+        } catch {
+          // no-op
+        }
+        const cached = getApps().find((item) => item.name === appName);
+        if (cached) {
+          await deleteApp(cached);
+        }
+      }
+    },
+    async updateTeacherPassword(payload, actor) {
+      if (!actor || !isAdminRole(actor.role)) {
+        throw new Error("Sadece admin ogretmen sifresi guncelleyebilir.");
+      }
+      const email = normalizeEmail(payload?.email);
+      const password = String(payload?.password || "").trim();
+
+      if (!email) {
+        throw new Error("Gecerli bir ogretmen e-postasi girin.");
+      }
+      if (password.length < 6) {
+        throw new Error("Firebase modunda ogretmen sifresi en az 6 karakter olmali.");
+      }
+
+      throw new Error("FIREBASE_TEACHER_PASSWORD_UPDATE_REQUIRES_BACKEND");
     },
     async removeApprovedTeacherEmail(email, actor) {
       if (!actor || !isAdminRole(actor.role)) {

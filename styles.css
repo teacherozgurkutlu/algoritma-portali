@@ -584,6 +584,15 @@ body::after {
   margin-top: 16px;
 }
 
+.inline-actions input[type="password"] {
+  min-width: 220px;
+  max-width: 280px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
 .gate-card,
 .empty-state {
   padding: 22px;

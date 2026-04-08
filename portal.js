@@ -31,6 +31,7 @@ const state = {
 };
 
 const UPLOAD_CALLBACK_STORAGE_PREFIX = "algoritmaUploadCallback:";
+const UPLOAD_POPUP_CLOSE_GRACE_MS = 4000;
 
 function createEmptyQuestion() {
   return {
@@ -427,17 +428,33 @@ function openDriveUploadPopup() {
       }
 
       if (popup.closed) {
-        cleanupDriveUploadBridge();
-        reject(new Error("UPLOAD_CANCELLED"));
+        if (!state.driveUploadBridge?.popupClosedAt) {
+          state.driveUploadBridge = {
+            ...state.driveUploadBridge,
+            popupClosedAt: Date.now()
+          };
+          return;
+        }
+
+        if (Date.now() - state.driveUploadBridge.popupClosedAt >= UPLOAD_POPUP_CLOSE_GRACE_MS) {
+          cleanupDriveUploadBridge();
+          reject(new Error("UPLOAD_CANCELLED"));
+        }
       }
     }, 600);
 
     const timeoutTimer = window.setTimeout(() => {
+      const callbackPayload = readUploadCallbackPayload(requestId);
+      if (callbackPayload) {
+        cleanupDriveUploadBridge();
+        resolve(callbackPayload);
+        return;
+      }
       cleanupDriveUploadBridge();
       reject(new Error("Yukleme zaman asimina ugradi."));
     }, 5 * 60 * 1000);
 
-    state.driveUploadBridge = { requestId, popup, resolve, reject, pollTimer, timeoutTimer };
+    state.driveUploadBridge = { requestId, popup, resolve, reject, pollTimer, timeoutTimer, popupClosedAt: null };
   });
 }
 

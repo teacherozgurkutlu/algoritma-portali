@@ -196,19 +196,26 @@
     }
 
     function redirectToPortalCallback(payload) {
-      if (!bootstrap.portalOrigin) {
-        postToPortal("google-drive-upload-complete", payload);
-        finalizeAndClose();
-        return;
-      }
-
       var callbackPayload = Object.assign({}, payload, {
         studentName: bootstrap.studentName,
         className: bootstrap.className,
         email: bootstrap.email
       });
+
+      // Notify the opener immediately so the portal can persist the project
+      // even if callback navigation fails.
+      postToPortal("google-drive-upload-complete", callbackPayload);
+
+      if (!bootstrap.portalOrigin) {
+        finalizeAndClose();
+        return;
+      }
+
       var encodedPayload = encodeURIComponent(JSON.stringify(callbackPayload));
-      var callbackUrl = bootstrap.portalOrigin + "/upload-callback.html?requestId=" + encodeURIComponent(bootstrap.requestId) + "&payload=" + encodedPayload;
+      var callbackUrl = bootstrap.portalOrigin
+        + "/upload-callback.html?requestId=" + encodeURIComponent(bootstrap.requestId)
+        + "&portalOrigin=" + encodeURIComponent(bootstrap.portalOrigin)
+        + "&payload=" + encodedPayload;
       window.location.replace(callbackUrl);
     }
 
@@ -307,3 +314,4 @@
   </script>
 </body>
 </html>
+

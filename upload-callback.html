@@ -81,130 +81,85 @@
     })();
   </script>
   <script type="module">
-    import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
     const statusNode = document.getElementById("status");
     const closeButton = document.getElementById("close-button");
-    const payload = window.__UPLOAD_PAYLOAD__ || {};
+    const payload = window.__UPLOAD_PAYLOAD__;
     const requestId = window.__UPLOAD_REQUEST_ID__;
     const portalOrigin = window.__UPLOAD_PORTAL_ORIGIN__ || window.location.origin;
+    const config = window.PORTAL_CONFIG;
 
-    async function waitForCurrentUser(auth, timeoutMs = 12000) {
-      return await new Promise((resolve, reject) => {
-        const timeoutId = window.setTimeout(() => {
-          unsubscribe();
-          reject(new Error("Oturum bilgisi zamaninda alinamadi."));
-        }, timeoutMs);
-
-        const unsubscribe = onAuthStateChanged(
-          auth,
-          (user) => {
-            window.clearTimeout(timeoutId);
-            unsubscribe();
-            resolve(user);
-          },
-          (error) => {
-            window.clearTimeout(timeoutId);
-            unsubscribe();
-            reject(error);
-          }
-        );
-      });
-    }
-
-    async function saveProjectRecordInFirestore(projectPayload, projectRequestId) {
-      const firebaseConfig = window.PORTAL_CONFIG?.firebase?.config;
-      if (!firebaseConfig || !firebaseConfig.apiKey) {
-        throw new Error("Firebase ayarlari eksik.");
-      }
-
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const auth = getAuth(app);
-      const db = getFirestore(app);
-      const currentUser = await waitForCurrentUser(auth);
-      if (!currentUser) {
-        throw new Error("Ogrenci oturumu bulunamadi.");
-      }
-
-      const profileRef = doc(db, "users", currentUser.uid);
-      const profileSnapshot = await getDoc(profileRef);
-      if (!profileSnapshot.exists()) {
-        throw new Error("Ogrenci profili bulunamadi.");
-      }
-
-      const profile = profileSnapshot.data() || {};
-      await setDoc(doc(db, "projects", projectRequestId), {
-        requestId: String(projectRequestId || ""),
-        userId: currentUser.uid,
-        studentName: profile.name || projectPayload.studentName || currentUser.displayName || "Ogrenci",
-        className: profile.className || projectPayload.className || "",
-        email: profile.email || currentUser.email || projectPayload.email || "",
-        teacherId: profile.assignedTeacherId || null,
-        teacherName: profile.assignedTeacherName || "",
-        teacherEmail: profile.assignedTeacherEmail || "",
-        title: String(projectPayload.title || "").trim(),
-        description: String(projectPayload.description || "").trim(),
-        driveFileId: String(projectPayload.driveFileId || ""),
-        driveFileUrl: String(projectPayload.driveFileUrl || ""),
-        driveFileName: String(projectPayload.driveFileName || ""),
-        mimeType: String(projectPayload.mimeType || ""),
-        size: Number(projectPayload.size || 0),
-        reviewText: "",
-        reviewUpdatedAt: null,
-        reviewUpdatedBy: null,
-        reviewUpdatedByName: null,
-        reviewUpdatedByRole: null,
-        uploadedAt: serverTimestamp()
-      }, { merge: true });
-    }
-
-    async function finalizeUpload() {
-      payload.firestoreSaved = false;
-      payload.firestoreSaveError = "";
-
-      try {
-        await saveProjectRecordInFirestore(payload, requestId);
-        payload.firestoreSaved = true;
-      } catch (error) {
-        payload.firestoreSaveError = error instanceof Error ? error.message : String(error || "FIRESTORE_SAVE_FAILED");
-      }
-
-      localStorage.setItem("algoritmaUploadCallback:" + requestId, JSON.stringify(payload));
-      if (window.opener) {
-        window.opener.postMessage({
-          type: "google-drive-upload-complete",
-          requestId,
-          payload
-        }, portalOrigin);
-      }
-
-      statusNode.textContent = payload.firestoreSaved
-        ? "Yukleme bilgisi portala ve Firebase'e kaydedildi. Bu pencere kapanabilir."
-        : "Drive yuklemesi tamamlandi. Portal penceresi Firebase kaydini tamamlayacak.";
-      closeButton.hidden = false;
-      closeButton.onclick = () => window.close();
-
-      setTimeout(() => {
-        try {
-          window.close();
-        } catch (error) {}
-      }, 500);
-    }
-
-    if (!requestId) {
+    if (!payload || !requestId || !config?.firebase?.config?.apiKey) {
       statusNode.textContent = "Portal ayarlari okunamadi. Bu pencereyi kapatip tekrar deneyin.";
       closeButton.hidden = false;
       closeButton.onclick = () => window.close();
     } else {
-      finalizeUpload().catch((error) => {
-        statusNode.textContent = error instanceof Error ? error.message : "Yukleme tamamlanamadi.";
-        closeButton.hidden = false;
-        closeButton.onclick = () => window.close();
+      const app = initializeApp(config.firebase.config);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          statusNode.textContent = "Portal oturumu bulunamadi. Ana sayfada giris yapip tekrar deneyin.";
+          closeButton.hidden = false;
+          closeButton.onclick = () => window.close();
+          return;
+        }
+
+        try {
+          await setDoc(doc(db, "projects", requestId), {
+            requestId,
+            userId: user.uid,
+            studentName: payload.studentName || user.displayName || "Ogrenci",
+            className: payload.className || "",
+            email: payload.email || user.email || "",
+            teacherId: payload.teacherId || "",
+            teacherName: payload.teacherName || "",
+            teacherEmail: payload.teacherEmail || "",
+            title: payload.title || payload.driveFileName || "Proje dosyasi",
+            description: payload.description || "",
+            driveFileId: payload.driveFileId || "",
+            driveFileUrl: payload.driveFileUrl || "",
+            driveFileName: payload.driveFileName || "",
+            mimeType: payload.mimeType || "",
+            size: Number(payload.size || 0),
+            uploadedAt: serverTimestamp(),
+            reviewText: "",
+            reviewUpdatedAt: null,
+            reviewUpdatedBy: null,
+            reviewUpdatedByName: null
+          }, { merge: true });
+
+          localStorage.setItem("algoritmaUploadCallback:" + requestId, JSON.stringify(payload));
+          if (window.opener) {
+            window.opener.postMessage({
+              type: "google-drive-upload-complete",
+              requestId,
+              payload
+            }, portalOrigin);
+          }
+
+          statusNode.textContent = "Proje kaydi olusturuldu. Bu pencere kapanabilir.";
+          closeButton.hidden = false;
+          closeButton.onclick = () => window.close();
+
+          setTimeout(() => {
+            try {
+              window.close();
+            } catch (error) {}
+          }, 500);
+        } catch (error) {
+          statusNode.textContent = "Firestore kaydi olusturulamadi. " + (error?.message || "");
+          closeButton.hidden = false;
+          closeButton.onclick = () => window.close();
+        }
       });
     }
   </script>
 </body>
 </html>
+
 

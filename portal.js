@@ -407,7 +407,10 @@ function openDriveUploadPopup() {
     studentId: state.currentUser.id,
     studentName: state.currentUser.name,
     className: state.currentUser.className,
-    email: state.currentUser.email
+    email: state.currentUser.email,
+    assignedTeacherId: state.currentUser.assignedTeacherId || "",
+    assignedTeacherName: state.currentUser.assignedTeacherName || "",
+    assignedTeacherEmail: state.currentUser.assignedTeacherEmail || ""
   });
   const popupUrl = `${uploadConfig.webAppUrl}${uploadConfig.webAppUrl.includes("?") ? "&" : "?"}${params.toString()}`;
   const popup = window.open(popupUrl, "driveUploadWindow", "width=720,height=820,resizable=yes,scrollbars=yes");
@@ -2116,5 +2119,6 @@ initPortal().catch((error) => {
     node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(friendlyErrorMessage(error))}</span>`;
   });
 });
+
 
 

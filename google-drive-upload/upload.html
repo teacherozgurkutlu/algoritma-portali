@@ -155,6 +155,9 @@
         <input type="hidden" name="studentName" value="<?= data.studentName ?>">
         <input type="hidden" name="className" value="<?= data.className ?>">
         <input type="hidden" name="email" value="<?= data.email ?>">
+        <input type="hidden" name="assignedTeacherId" value="<?= data.assignedTeacherId ?>">
+        <input type="hidden" name="assignedTeacherName" value="<?= data.assignedTeacherName ?>">
+        <input type="hidden" name="assignedTeacherEmail" value="<?= data.assignedTeacherEmail ?>">
 
         <label>
           <span>Proje basligi</span>
@@ -211,7 +214,10 @@
       var callbackPayload = Object.assign({}, payload, {
         studentName: bootstrap.studentName,
         className: bootstrap.className,
-        email: bootstrap.email
+        email: bootstrap.email,
+        teacherId: bootstrap.assignedTeacherId,
+        teacherName: bootstrap.assignedTeacherName,
+        teacherEmail: bootstrap.assignedTeacherEmail
       });
 
       // Notify the opener immediately so the portal can persist the project
@@ -289,6 +295,9 @@
             studentName: form.studentName.value,
             className: form.className.value,
             email: form.email.value,
+            assignedTeacherId: form.assignedTeacherId.value,
+            assignedTeacherName: form.assignedTeacherName.value,
+            assignedTeacherEmail: form.assignedTeacherEmail.value,
             projectTitle: form.projectTitle.value,
             description: form.description.value,
             projectFileBase64: base64,
@@ -327,6 +336,7 @@
   </script>
 </body>
 </html>
+
 
 
 

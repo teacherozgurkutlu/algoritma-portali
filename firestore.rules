@@ -116,9 +116,11 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow create: if isSignedIn() &&
+      allow create: if (
+        isSignedIn() &&
         request.resource.data.userId == request.auth.uid &&
-        currentRole() == "student";
+        currentRole() == "student"
+      ) || isStaff() || isAdminBootstrapEmail();
       allow read: if isAdmin() ||
         (isTeacher() && (
           resource.data.teacherId == request.auth.uid ||
@@ -165,3 +167,4 @@ service cloud.firestore {
     }
   }
 }
+

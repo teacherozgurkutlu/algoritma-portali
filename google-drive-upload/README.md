@@ -28,3 +28,9 @@ Bu klasor, ogrenci dosyalarini ogretmenin Google Drive hesabindaki `bilsemprj` k
 - Yuklenen dosyayi ilgili ogrenci klasorune kaydeder.
 - Firestore `projects` koleksiyonuna proje kaydi olusturur.
 - Portal penceresine dosya metaverisini geri yollar.
+
+## Guvenlik
+
+- `FIREBASE_TEACHER_PASSWORD` gibi secret degerleri Apps Script `Script properties` icinde tutun; repoya eklemeyin.
+- `portal-config.js` icindeki Firebase web config istemci tarafinda kullanildigi icin gizli degildir. Erisimi Firestore rules ile sinirlayin.
+- GitHub'da yayinli web app URL'si kalsa bile, sunucu tarafinda ek dogrulama ve Firebase kurallari olmadan ona guvenmeyin.

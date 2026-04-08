@@ -10,8 +10,12 @@ const STORAGE_KEYS = {
 
 const PORTAL_CONFIG = window.PORTAL_CONFIG || {};
 const ADMIN_CONFIG = PORTAL_CONFIG.admin || { name: "Sistem Yoneticisi", email: "ogretmen@algoritma-portal.local" };
-const LOCAL_ADMIN_PASSWORD = String(PORTAL_CONFIG.admin?.localPassword || "YerelYonetici123!");
-const LOCAL_TEACHER_PASSWORD = String(PORTAL_CONFIG.admin?.localTeacherPassword || "YerelOgretmen123!");
+const LOCAL_ADMIN_PASSWORD = typeof PORTAL_CONFIG.admin?.localPassword === "string"
+  ? PORTAL_CONFIG.admin.localPassword.trim()
+  : "";
+const LOCAL_TEACHER_PASSWORD = typeof PORTAL_CONFIG.admin?.localTeacherPassword === "string"
+  ? PORTAL_CONFIG.admin.localTeacherPassword.trim()
+  : "";
 const FIREBASE_CONFIG = PORTAL_CONFIG.firebase || { teacherEmails: [], config: {} };
 const GOOGLE_DRIVE_UPLOAD_CONFIG = PORTAL_CONFIG.googleDriveUpload || { webAppUrl: "", folderName: "bilsemprj", maxFileSizeMb: 20 };
 
@@ -384,11 +388,12 @@ function buildLocalDataLayer() {
         existing.className = isStaffRole(role) ? "" : (existing.className || "");
         existing.email = email;
       } else {
+        const seededPassword = role === "admin" ? LOCAL_ADMIN_PASSWORD : LOCAL_TEACHER_PASSWORD;
         users.push({
           id: createId(role),
           ...createEmptyAssignment(),
           ...baseFields,
-          password: role === "admin" ? LOCAL_ADMIN_PASSWORD : LOCAL_TEACHER_PASSWORD,
+          password: seededPassword || createId("local-password-disabled"),
           createdAt: now
         });
       }
@@ -1570,3 +1575,5 @@ async function buildFirebaseDataLayer() {
 export async function createDataLayer() {
   return isFirebaseModeConfigured() ? buildFirebaseDataLayer() : buildLocalDataLayer();
 }
+
+

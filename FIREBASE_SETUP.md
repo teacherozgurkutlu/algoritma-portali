@@ -37,3 +37,9 @@ Dosyalar hazir:
 3. Scripti web app olarak `Execute as: Me` seklinde yayinlayin.
 4. Uretilen web app adresini `portal-config.js` icindeki `googleDriveUpload.webAppUrl` alanina girin.
 5. Portal artik ogrenciler icin yukleme popup'ini acacak ve yuklenen dosyalar sizin Drive hesabinizdaki `bilsemprj` klasorune kaydedilecektir.
+
+Not:
+
+- `Script properties` degerlerini repoya commit etmeyin.
+- `FIREBASE_TEACHER_PASSWORD` icin sadece Firebase Authentication'da aktif olan gercek bir hesap kullanin.
+- `portal-config.js` icindeki web istemci `firebase.config` alanlari gizli sayilmaz; asil gizli bilgiler Apps Script `Script properties` veya benzeri secret store icinde tutulmalidir.

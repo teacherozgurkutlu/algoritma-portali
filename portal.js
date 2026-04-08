@@ -981,7 +981,7 @@ function buildProjectWorkspaceRows(snapshot) {
   }));
 }
 
-function renderStaffProjectPage(snapshot) {
+function renderStaffProjectPage(snapshot, { messageOnly = false } = {}) {
   const statsHost = document.getElementById("project-staff-stats");
   const workspaceHost = document.getElementById("project-staff-workspace");
 
@@ -1011,27 +1011,30 @@ function renderStaffProjectPage(snapshot) {
         <span>${messages.length} mesaj</span>
       </summary>
       <div class="teacher-student-content">
-        <section class="teacher-student-column">
-          <div class="student-mini-meta">
-            <span class="status-pill">${escapeHtml(student.email || "-")}</span>
-            <span class="status-pill">${student.assignedTeacherName ? escapeHtml(student.assignedTeacherName) : "Atama yok"}</span>
-          </div>
-          ${renderProjectCards(projects, "staff")}
-        </section>
-        <section class="teacher-student-column">
-          <h3>Mesajlasma</h3>
-          ${renderMessageThread(messages, "staff")}
-          <form class="message-form" data-teacher-message-form="${escapeHtml(student.id)}">
-            <label class="field">
-              <span>${escapeHtml(student.name)} icin mesaj</span>
-              <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
-            </label>
-            <div class="inline-actions">
-              <button class="button button-primary" type="submit">Mesaj gonder</button>
+        ${messageOnly ? `
+          <section class="teacher-student-column">
+            <h3>Mesajlasma</h3>
+            ${renderMessageThread(messages, "staff")}
+            <form class="message-form" data-teacher-message-form="${escapeHtml(student.id)}">
+              <label class="field">
+                <span>${escapeHtml(student.name)} icin mesaj</span>
+                <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
+              </label>
+              <div class="inline-actions">
+                <button class="button button-primary" type="submit">Mesaj gonder</button>
+              </div>
+              <p class="auth-message" data-message-status aria-live="polite"></p>
+            </form>
+          </section>
+        ` : `
+          <section class="teacher-student-column">
+            <div class="student-mini-meta">
+              <span class="status-pill">${escapeHtml(student.email || "-")}</span>
+              <span class="status-pill">${student.assignedTeacherName ? escapeHtml(student.assignedTeacherName) : "Atama yok"}</span>
             </div>
-            <p class="auth-message" data-message-status aria-live="polite"></p>
-          </form>
-        </section>
+            ${renderProjectCards(projects, "staff")}
+          </section>
+        `}
       </div>
     </details>
   `).join("");
@@ -1978,21 +1981,9 @@ function renderProjectManagementPage() {
     if (studentShell) studentShell.hidden = true;
     if (staffShell) staffShell.hidden = false;
     loadManagementSnapshot((snapshot) => {
-      renderStaffProjectPage(snapshot);
+      renderStaffProjectPage(snapshot, { messageOnly: isMessagePage });
       bindStaffProjectActions();
 
-      const rows = document.querySelectorAll(".teacher-student-content");
-      rows.forEach((row) => {
-        const columns = row.querySelectorAll(".teacher-student-column");
-        if (columns.length < 2) return;
-        if (isMessagePage) {
-          columns[0].setAttribute("hidden", "hidden");
-          columns[1].removeAttribute("hidden");
-        } else {
-          columns[1].setAttribute("hidden", "hidden");
-          columns[0].removeAttribute("hidden");
-        }
-      });
     });
     return;
   }
@@ -2064,3 +2055,4 @@ initPortal().catch((error) => {
     node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(friendlyErrorMessage(error))}</span>`;
   });
 });
+

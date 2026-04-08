@@ -333,12 +333,22 @@ function bindDriveUploadBridge() {
   state.driveUploadBridgeBound = true;
   window.addEventListener("message", (event) => {
     const bridge = state.driveUploadBridge;
-    if (!bridge || event.source !== bridge.popup) {
+    if (!bridge) {
       return;
     }
 
     const data = event.data || {};
     if (data.requestId !== bridge.requestId) {
+      return;
+    }
+
+    const origin = String(event.origin || "");
+    const isTrustedOrigin = !origin ||
+      origin === window.location.origin ||
+      origin.startsWith("https://script.google.com") ||
+      origin.startsWith("https://script.googleusercontent.com");
+
+    if (!isTrustedOrigin) {
       return;
     }
 

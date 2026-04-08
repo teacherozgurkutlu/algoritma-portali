@@ -183,6 +183,18 @@
     var statusNode = document.getElementById("status");
     var submitButton = document.getElementById("submit-button");
 
+    function getPortalOrigin() {
+      if (bootstrap.portalOrigin) {
+        return bootstrap.portalOrigin;
+      }
+      if (document.referrer) {
+        try {
+          return new URL(document.referrer).origin;
+        } catch (error) {}
+      }
+      return "";
+    }
+
     function postToPortal(type, payload) {
       if (!window.opener) {
         return;
@@ -192,7 +204,7 @@
         requestId: bootstrap.requestId,
         payload,
         message: payload && payload.message ? payload.message : ""
-      }, bootstrap.portalOrigin || "*");
+      }, getPortalOrigin() || "*");
     }
 
     function redirectToPortalCallback(payload) {
@@ -206,15 +218,16 @@
       // even if callback navigation fails.
       postToPortal("google-drive-upload-complete", callbackPayload);
 
-      if (!bootstrap.portalOrigin) {
+      var portalOrigin = getPortalOrigin();
+      if (!portalOrigin) {
         finalizeAndClose();
         return;
       }
 
       var encodedPayload = encodeURIComponent(JSON.stringify(callbackPayload));
-      var callbackUrl = bootstrap.portalOrigin
+      var callbackUrl = portalOrigin
         + "/upload-callback.html?requestId=" + encodeURIComponent(bootstrap.requestId)
-        + "&portalOrigin=" + encodeURIComponent(bootstrap.portalOrigin)
+        + "&portalOrigin=" + encodeURIComponent(portalOrigin)
         + "&payload=" + encodedPayload;
       window.location.replace(callbackUrl);
     }
@@ -314,4 +327,6 @@
   </script>
 </body>
 </html>
+
+
 

@@ -1395,8 +1395,14 @@ function bindStudentProjectActions() {
       if (uploadMessage) uploadMessage.textContent = "Yukleme penceresi aciliyor...";
       try {
         const projectPayload = await openDriveUploadPopup();
-        if (uploadMessage) uploadMessage.textContent = "Drive kaydi olusturuluyor...";
-        await state.dataLayer.saveProjectRecord(state.currentUser, projectPayload);
+        if (uploadMessage) {
+          uploadMessage.textContent = projectPayload.firestoreSaved
+            ? "Firebase kaydi dogrulaniyor..."
+            : "Drive kaydi Firebase'e yaziliyor...";
+        }
+        if (!projectPayload.firestoreSaved) {
+          await state.dataLayer.saveProjectRecord(state.currentUser, projectPayload);
+        }
         await loadStudentWorkspace(renderStudentProjectPage);
         if (uploadMessage) uploadMessage.textContent = "Proje basariyla kaydedildi.";
       } catch (error) {

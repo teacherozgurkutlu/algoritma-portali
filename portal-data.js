@@ -1378,23 +1378,36 @@ async function buildFirebaseDataLayer() {
         };
       }
 
-      const [selfProfile, studentsSnapshot, quizzesSnapshot, attemptsSnapshot, projectsSnapshot, messagesSnapshot, staffEmails] = await Promise.all([
+      const [selfProfile, studentsSnapshot, quizzesSnapshot, attemptsSnapshot, messagesSnapshot, staffEmails] = await Promise.all([
         fetchUserProfile(actor.id),
         getDocs(query(collection(db, "users"), where("assignedTeacherEmail", "==", normalizeEmail(actor.email)))),
         getDocs(query(collection(db, "quizzes"), where("createdBy", "==", actor.id))),
         getDocs(query(collection(db, "attempts"), where("teacherEmail", "==", normalizeEmail(actor.email)))),
-        getDocs(query(collection(db, "projects"), where("teacherEmail", "==", normalizeEmail(actor.email)))),
         getDocs(query(collection(db, "messages"), where("teacherEmail", "==", normalizeEmail(actor.email)))),
         this.listApprovedTeacherEmails()
       ]);
 
+      const students = studentsSnapshot.docs.map(mapUser).sort((left, right) => left.name.localeCompare(right.name, "tr"));
+      const projectSnapshots = await Promise.all(
+        students.map((student) => getDocs(query(collection(db, "projects"), where("userId", "==", student.id))))
+      );
+      const projects = [];
+      const seenProjectIds = new Set();
+      projectSnapshots.forEach((snapshot) => {
+        snapshot.docs.forEach((item) => {
+          if (seenProjectIds.has(item.id)) return;
+          seenProjectIds.add(item.id);
+          projects.push(mapProject(item));
+        });
+      });
+
       return {
         approvedTeacherEmails: staffEmails,
         teachers: selfProfile ? [selfProfile] : [],
-        students: studentsSnapshot.docs.map(mapUser).sort((left, right) => left.name.localeCompare(right.name, "tr")),
+        students,
         quizzes: sortQuizzesNewestFirst(quizzesSnapshot.docs.map(mapQuiz)),
         attempts: sortAttemptsNewestFirst(attemptsSnapshot.docs.map(mapAttempt)),
-        projects: sortProjectsNewestFirst(projectsSnapshot.docs.map(mapProject)),
+        projects: sortProjectsNewestFirst(projects),
         messages: sortMessagesOldestFirst(messagesSnapshot.docs.map(mapMessage))
       };
     },
@@ -1435,6 +1448,49 @@ async function buildFirebaseDataLayer() {
       }
 
       const cache = { teacher: null, students: null, quizzes: null, attempts: null, projects: null, messages: null, staffEmails: null, teacherLoaded: false };
+      const projectSubscriptions = new Map();
+      const projectsByStudent = new Map();
+      const refreshProjects = () => {
+        const merged = [];
+        const seen = new Set();
+        projectsByStudent.forEach((items) => {
+          (items || []).forEach((item) => {
+            if (seen.has(item.id)) return;
+            seen.add(item.id);
+            merged.push(item);
+          });
+        });
+        cache.projects = merged;
+      };
+      const syncProjectSubscriptions = () => {
+        const studentIds = new Set((cache.students || []).map((student) => student.id).filter(Boolean));
+
+        projectSubscriptions.forEach((unsubscribe, studentId) => {
+          if (studentIds.has(studentId)) return;
+          unsubscribe();
+          projectSubscriptions.delete(studentId);
+          projectsByStudent.delete(studentId);
+        });
+
+        studentIds.forEach((studentId) => {
+          if (projectSubscriptions.has(studentId)) return;
+          const unsubscribe = subscribeWorkspace(
+            query(collection(db, "projects"), where("userId", "==", studentId)),
+            mapProject,
+            (items) => {
+              projectsByStudent.set(studentId, items);
+              refreshProjects();
+              publish();
+            },
+            publish,
+            onError
+          );
+          projectSubscriptions.set(studentId, unsubscribe);
+        });
+
+        refreshProjects();
+        publish();
+      };
       const publish = () => {
         if (!cache.teacherLoaded || !cache.students || !cache.staffEmails) {
           return;
@@ -1464,7 +1520,10 @@ async function buildFirebaseDataLayer() {
       const unsubscribeStudents = subscribeWorkspace(
         query(collection(db, "users"), where("assignedTeacherEmail", "==", normalizeEmail(actor.email))),
         mapUser,
-        (items) => { cache.students = items; },
+        (items) => {
+          cache.students = items;
+          syncProjectSubscriptions();
+        },
         publish,
         onError
       );
@@ -1485,14 +1544,6 @@ async function buildFirebaseDataLayer() {
         onError
       );
 
-      const unsubscribeProjects = subscribeWorkspace(
-        query(collection(db, "projects"), where("teacherEmail", "==", normalizeEmail(actor.email))),
-        mapProject,
-        (items) => { cache.projects = items; },
-        publish,
-        onError
-      );
-
       const unsubscribeMessages = subscribeWorkspace(
         query(collection(db, "messages"), where("teacherEmail", "==", normalizeEmail(actor.email))),
         mapMessage,
@@ -1507,8 +1558,10 @@ async function buildFirebaseDataLayer() {
         unsubscribeStudents();
         unsubscribeQuizzes();
         unsubscribeAttempts();
-        unsubscribeProjects();
         unsubscribeMessages();
+        projectSubscriptions.forEach((unsubscribe) => unsubscribe());
+        projectSubscriptions.clear();
+        projectsByStudent.clear();
       };
     }
   };

@@ -36,9 +36,9 @@
           <p class="eyebrow">Portal erisimi</p>
           <h2>Altieylul BILSEM Proje Yonetim Sistemi</h2>
           <p>
-            Ogrenciler kayit olduktan sonra yonetici tarafindan ogretmen atamasi yapilir.
-            Ogretmen hesaplari ise yonetim panelinden admin tarafinda olusturulur.
-            Atanan ogretmen kendi ogrencilerini quiz, proje ve mesaj ekranlarindan yonetir.
+            Ogrenciler ve ogretmenler ayni kayit ekraniyla hesap olusturur.
+            Admin panelinden ogretmen e-postasi olarak eklenen hesaplar otomatik ogretmen rolune gecer.
+            Ogretmenler kendi ogrencilerini quiz, proje ve mesaj ekranlarindan yonetir.
           </p>
           <div id="active-session"></div>
         </article>
@@ -46,7 +46,7 @@
         <article class="auth-card auth-tabs-card">
           <div class="auth-tabs" role="tablist" aria-label="Kimlik dogrulama sekmeleri">
             <button type="button" class="auth-tab active" data-auth-tab="login">Oturum Ac</button>
-            <button type="button" class="auth-tab" data-auth-tab="register">Ogrenci Kaydi</button>
+            <button type="button" class="auth-tab" data-auth-tab="register">Kayit Ol</button>
           </div>
 
           <section data-auth-panel="login">
@@ -63,10 +63,18 @@
               <button class="button button-primary" type="submit">Oturum Ac</button>
             </form>
             <p class="auth-message" id="login-message" aria-live="polite"></p>
+            <form id="forgot-password-form" class="form-grid">
+              <label class="field">
+                <span>Sifremi unuttum</span>
+                <input type="email" name="email" placeholder="Kayitli e-posta adresiniz">
+              </label>
+              <button class="button button-secondary" type="submit">Sifirlama linki gonder</button>
+            </form>
+            <p class="auth-message" id="forgot-password-message" aria-live="polite"></p>
           </section>
 
           <section data-auth-panel="register" hidden>
-            <h2>Ogrenci Kaydi</h2>
+            <h2>Kayit Ol</h2>
             <form id="register-form" class="form-grid">
               <label class="field">
                 <span>Ad soyad</span>

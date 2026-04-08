@@ -66,8 +66,8 @@ function friendlyErrorMessage(error) {
   if (text.includes("auth/invalid-credential") || text.includes("auth/wrong-password") || text.includes("auth/user-not-found")) {
     return "E-posta veya sifre hatali.";
   }
-  if (text.includes("FIREBASE_TEACHER_PASSWORD_UPDATE_REQUIRES_BACKEND")) {
-    return "Firebase modunda panelden dogrudan sifre degistirmek icin Firebase Admin SDK kullanan bir backend/Cloud Function gerekir.";
+  if (text.includes("LOCAL_MODE_PASSWORD_RESET_NOT_AVAILABLE")) {
+    return "Yerel modda sifre sifirlama linki yok. Bu ozellik Firebase modunda calisir.";
   }
   if (text.includes("UPLOAD_NOT_CONFIGURED")) {
     return "Google Drive yukleme koprusu henuz ayarlanmadi.";
@@ -251,7 +251,7 @@ function renderSessionBadges() {
     }
 
     node.innerHTML = `
-      <span class="status-pill">${escapeHtml(state.currentUser.name)} â€¢ ${roleLabel(state.currentUser.role)}</span>
+      <span class="status-pill">${escapeHtml(state.currentUser.name)} • ${roleLabel(state.currentUser.role)}</span>
       <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
     `;
     node.innerHTML = `
@@ -543,39 +543,30 @@ function renderStudentQuizOverview(snapshot) {
   const host = document.getElementById("student-quiz-overview");
   if (!host) return;
 
-  if (!snapshot.teacher) {
-    host.innerHTML = `
+  host.innerHTML = snapshot.teacher
+    ? `
+      <div class="summary-card-grid">
+        <article class="summary-card">
+          <h3>${escapeHtml(snapshot.teacher.name)}</h3>
+          <p>${escapeHtml(snapshot.teacher.email || "-")} • ${escapeHtml(snapshot.teacher.className || "-")}</p>
+          <div class="summary-metrics">
+            <span>${(snapshot.quizzes || []).length} quiz</span>
+            <span>${(snapshot.attempts || []).length} sonuc</span>
+            <span>${(snapshot.projects || []).length} proje</span>
+          </div>
+        </article>
+      </div>
+    `
+    : `
       <div class="gate-card">
-        <h2>Ogretmen atamasi bekleniyor</h2>
-        <p>Admin henuz size bir ogretmen atamadi. Atama yapildiktan sonra quizleriniz burada listelenecek.</p>
+        <h2>Ogretmen atamasi yok</h2>
+        <p>Atama olmasa da quiz ve proje ekranlarini kullanabilirsiniz.</p>
       </div>
     `;
-    return;
-  }
-
-  host.innerHTML = `
-    <div class="summary-card-grid">
-      <article class="summary-card">
-        <h3>${escapeHtml(snapshot.teacher.name)}</h3>
-        <p>${escapeHtml(snapshot.teacher.email || "-")} • ${escapeHtml(snapshot.teacher.className || "BILSEM")}</p>
-        <div class="summary-metrics">
-          <span>${(snapshot.quizzes || []).length} quiz</span>
-          <span>${(snapshot.attempts || []).length} sonuc</span>
-          <span>${(snapshot.projects || []).length} proje</span>
-        </div>
-      </article>
-    </div>
-  `;
 }
-
 function renderStudentQuizList(snapshot) {
   const host = document.getElementById("student-quiz-list");
   if (!host) return;
-
-  if (!snapshot.teacher) {
-    host.innerHTML = `<div class="empty-state">Ogretmen atamasi tamamlanmadan quiz acilmaz.</div>`;
-    return;
-  }
 
   const attemptMap = new Map();
   (snapshot.attempts || []).forEach((attempt) => {
@@ -918,7 +909,7 @@ function renderStudentProjectPage(snapshot) {
         <div class="summary-card-grid">
           <article class="summary-card">
             <h3>${escapeHtml(snapshot.teacher.name)}</h3>
-            <p>${escapeHtml(snapshot.teacher.email || "-")} • ${escapeHtml(snapshot.teacher.className || "BILSEM")}</p>
+            <p>${escapeHtml(snapshot.teacher.email || "-")} • ${escapeHtml(snapshot.teacher.className || "-")}</p>
             <div class="summary-metrics">
               <span>${(snapshot.projects || []).length} proje</span>
               <span>${(snapshot.messages || []).length} mesaj</span>
@@ -927,23 +918,21 @@ function renderStudentProjectPage(snapshot) {
           </article>
         </div>
       `
-      : `<div class="gate-card"><h2>Ogretmen atamasi bekleniyor</h2><p>Atama tamamlanmadan proje ve mesajlasma alani aktif edilmez.</p></div>`;
+      : `<div class="gate-card"><h2>Ogretmen atamasi yok</h2><p>Atama olmasa da proje yukleme ve mesajlasma kullanilabilir.</p></div>`;
   }
 
   if (uploadHost) {
-    uploadHost.innerHTML = !snapshot.teacher
-      ? `<div class="empty-state">Once admin tarafinda bir ogretmen atamasi yapilmalidir.</div>`
-      : isGoogleDriveUploadConfigured()
-        ? `
-          <div class="project-upload-card">
-            <p>Dosyalar <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune yuklenir ve portala kaydedilir.</p>
-            <div class="inline-actions">
-              <button class="button button-primary" type="button" id="student-drive-upload-button">Proje dosyasi yukle</button>
-            </div>
-            <p class="auth-message" id="student-project-message" aria-live="polite"></p>
+    uploadHost.innerHTML = isGoogleDriveUploadConfigured()
+      ? `
+        <div class="project-upload-card">
+          <p>Dosyalar <strong>${escapeHtml(uploadConfig.folderName)}</strong> klasorune yuklenir ve portala kaydedilir.</p>
+          <div class="inline-actions">
+            <button class="button button-primary" type="button" id="student-drive-upload-button">Proje dosyasi yukle</button>
           </div>
-        `
-        : `<div class="empty-state">Drive yukleme koprusu henuz tanimli degil.</div>`;
+          <p class="auth-message" id="student-project-message" aria-live="polite"></p>
+        </div>
+      `
+      : `<div class="empty-state">Drive yukleme koprusu henuz tanimli degil.</div>`;
   }
 
   if (projectHost) {
@@ -951,21 +940,19 @@ function renderStudentProjectPage(snapshot) {
   }
 
   if (messageHost) {
-    messageHost.innerHTML = snapshot.teacher
-      ? `
-        ${renderMessageThread(snapshot.messages || [], "student")}
-        <form id="student-message-form" class="message-form">
-          <label class="field">
-            <span>Ogretmene mesaj</span>
-            <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
-          </label>
-          <div class="inline-actions">
-            <button class="button button-primary" type="submit">Mesaj gonder</button>
-          </div>
-          <p class="auth-message" id="student-message-status" aria-live="polite"></p>
-        </form>
-      `
-      : `<div class="empty-state">Ogretmen atamasi sonrasinda mesajlasma aktif olur.</div>`;
+    messageHost.innerHTML = `
+      ${renderMessageThread(snapshot.messages || [], "student")}
+      <form id="student-message-form" class="message-form">
+        <label class="field">
+          <span>Mesaj gonder</span>
+          <textarea name="text" class="message-textarea" placeholder="Mesajinizi yazin"></textarea>
+        </label>
+        <div class="inline-actions">
+          <button class="button button-primary" type="submit">Mesaj gonder</button>
+        </div>
+        <p class="auth-message" id="student-message-status" aria-live="polite"></p>
+      </form>
+    `;
   }
 
   bindStudentProjectActions();
@@ -1104,8 +1091,10 @@ function bindLoginPage() {
   renderTeacherLoginNote();
 
   const loginForm = document.getElementById("login-form");
+  const forgotPasswordForm = document.getElementById("forgot-password-form");
   const registerForm = document.getElementById("register-form");
   const loginMessage = document.getElementById("login-message");
+  const forgotPasswordMessage = document.getElementById("forgot-password-message");
   const registerMessage = document.getElementById("register-message");
   const activeSession = document.getElementById("active-session");
   const tabButtons = document.querySelectorAll("[data-auth-tab]");
@@ -1151,6 +1140,29 @@ function bindLoginPage() {
     });
   }
 
+  if (forgotPasswordForm && !forgotPasswordForm.dataset.bound) {
+    forgotPasswordForm.dataset.bound = "true";
+    forgotPasswordForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (forgotPasswordMessage) forgotPasswordMessage.textContent = "";
+      const formData = new FormData(forgotPasswordForm);
+      const email = String(formData.get("email") || "").trim();
+
+      if (!email) {
+        if (forgotPasswordMessage) forgotPasswordMessage.textContent = "Lutfen e-posta adresinizi girin.";
+        return;
+      }
+
+      try {
+        await state.dataLayer.sendPasswordResetEmail(email);
+        if (forgotPasswordMessage) forgotPasswordMessage.textContent = "Sifre sifirlama linki gonderildi.";
+        forgotPasswordForm.reset();
+      } catch (error) {
+        if (forgotPasswordMessage) forgotPasswordMessage.textContent = friendlyErrorMessage(error);
+      }
+    });
+  }
+
   if (registerForm && !registerForm.dataset.bound) {
     registerForm.dataset.bound = "true";
     registerForm.addEventListener("submit", async (event) => {
@@ -1164,7 +1176,7 @@ function bindLoginPage() {
         password: String(formData.get("password") || "").trim()
       };
 
-      if (!payload.name || !payload.className || !payload.email || !payload.password) {
+      if (!payload.name || !payload.email || !payload.password) {
         registerMessage.textContent = "Lutfen tum alanlari doldurun.";
         return;
       }
@@ -1678,23 +1690,11 @@ function renderManagementDashboard(snapshot) {
     teacherEmailHost.innerHTML = `
       <form id="teacher-email-form" class="form-grid">
         <label class="field">
-          <span>Ogretmen adi</span>
-          <input type="text" name="teacherName" placeholder="Ornek: Ayse Yilmaz">
-        </label>
-        <label class="field">
           <span>Yeni ogretmen e-postasi</span>
           <input type="email" name="teacherEmail" placeholder="ornek@okul.k12.tr">
         </label>
-        <label class="field">
-          <span>Ogretmen sifresi</span>
-          <input type="password" name="teacherPassword" placeholder="${isFirebaseModeConfigured() ? "En az 6 karakter" : "En az 4 karakter"}">
-        </label>
-        <label class="field">
-          <span>Birim / Sinif (opsiyonel)</span>
-          <input type="text" name="teacherClassName" placeholder="BILSEM">
-        </label>
         <div class="inline-actions">
-          <button class="button button-primary" type="submit">Ogretmen hesabi olustur</button>
+          <button class="button button-primary" type="submit">Ogretmen e-postasi ekle</button>
         </div>
         <p class="auth-message" id="teacher-email-status" aria-live="polite"></p>
       </form>
@@ -1704,19 +1704,14 @@ function renderManagementDashboard(snapshot) {
           return `
           <article class="summary-card">
             <h3>${escapeHtml(email)}</h3>
-            <p>Bu e-posta yonetim panelinden olusturulan ogretmen hesabina aittir.</p>
+            <p>Bu e-posta ile kayit olan kullanici ogretmen rolune gecer.</p>
             <div class="summary-metrics">
               <span>${assignedCount} ogrenci</span>
-            </div>
-            <div class="inline-actions">
-              <input type="password" data-teacher-password-input="${escapeHtml(email)}" placeholder="${isFirebaseModeConfigured() ? "Yeni sifre (min 6)" : "Yeni sifre (min 4)"}">
-              <button class="button button-secondary" type="button" data-update-teacher-password="${escapeHtml(email)}">Sifreyi guncelle</button>
             </div>
             <div class="inline-actions">
               <button class="button button-secondary" type="button" data-clear-assignments-email="${escapeHtml(email)}">Bu ogretmenin atamalarini temizle</button>
               <button class="button button-secondary" type="button" data-remove-teacher-email="${escapeHtml(email)}">Ogretmen e-postasini sil</button>
             </div>
-            <p class="inline-note" data-update-teacher-password-status="${escapeHtml(email)}"></p>
             <p class="inline-note" data-clear-assignments-status="${escapeHtml(email)}"></p>
             <p class="inline-note" data-remove-teacher-status="${escapeHtml(email)}"></p>
           </article>
@@ -1848,71 +1843,32 @@ function bindTeacherDashboardActions() {
       const status = document.getElementById("teacher-email-status");
       const formData = new FormData(form);
       const teacherEmail = String(formData.get("teacherEmail") || "").trim().toLowerCase();
-      const teacherPassword = String(formData.get("teacherPassword") || "").trim();
-      const teacherName = String(formData.get("teacherName") || "").trim();
-      const teacherClassName = String(formData.get("teacherClassName") || "").trim();
 
       if (!teacherEmail) {
         if (status) status.textContent = "Gecerli bir e-posta girin.";
-        return;
-      }
-      if (!teacherPassword) {
-        if (status) status.textContent = "Ogretmen sifresini girin.";
         return;
       }
 
       if (status) status.textContent = "Kaydediliyor...";
 
       try {
-        await state.dataLayer.createTeacherAccount({
-          email: teacherEmail,
-          password: teacherPassword,
-          name: teacherName,
-          className: teacherClassName
-        }, state.currentUser);
-        state.managementSnapshot = await state.dataLayer.getManagementSnapshot(state.currentUser);
-        renderManagementDashboard(state.managementSnapshot);
+        await state.dataLayer.saveApprovedTeacherEmail(teacherEmail, state.currentUser);
+        if (state.managementSnapshot && !((state.managementSnapshot.approvedTeacherEmails || []).includes(teacherEmail))) {
+          state.managementSnapshot.approvedTeacherEmails = [...(state.managementSnapshot.approvedTeacherEmails || []), teacherEmail];
+          renderManagementDashboard(state.managementSnapshot);
+        }
         form.reset();
         const refreshedStatus = document.getElementById("teacher-email-status");
-        if (refreshedStatus) refreshedStatus.textContent = "Ogretmen hesabi olusturuldu.";
+        if (refreshedStatus) refreshedStatus.textContent = "Ogretmen e-postasi kaydedildi.";
       } catch (error) {
         if (status) status.textContent = friendlyErrorMessage(error);
       }
     });
 
     teacherEmailHost.addEventListener("click", async (event) => {
-      const updatePasswordButton = event.target.closest("[data-update-teacher-password]");
       const clearButton = event.target.closest("[data-clear-assignments-email]");
       const removeButton = event.target.closest("[data-remove-teacher-email]");
-      if (!updatePasswordButton && !clearButton && !removeButton) return;
-
-      if (updatePasswordButton) {
-        const teacherEmail = String(updatePasswordButton.getAttribute("data-update-teacher-password") || "").trim().toLowerCase();
-        const input = teacherEmailHost.querySelector(`[data-teacher-password-input="${teacherEmail}"]`);
-        const status = teacherEmailHost.querySelector(`[data-update-teacher-password-status="${teacherEmail}"]`);
-        const nextPassword = String(input?.value || "").trim();
-
-        if (!teacherEmail) return;
-        if (!nextPassword) {
-          if (status) status.textContent = "Yeni sifreyi girin.";
-          return;
-        }
-
-        updatePasswordButton.disabled = true;
-        if (status) status.textContent = "Guncelleniyor...";
-
-        try {
-          await state.dataLayer.updateTeacherPassword({ email: teacherEmail, password: nextPassword }, state.currentUser);
-          if (input) input.value = "";
-          const refreshedStatus = document.querySelector(`[data-update-teacher-password-status="${teacherEmail}"]`);
-          if (refreshedStatus) refreshedStatus.textContent = "Ogretmen sifresi guncellendi.";
-        } catch (error) {
-          if (status) status.textContent = friendlyErrorMessage(error);
-        } finally {
-          updatePasswordButton.disabled = false;
-        }
-        return;
-      }
+      if (!clearButton && !removeButton) return;
 
       if (clearButton) {
         const teacherEmail = String(clearButton.getAttribute("data-clear-assignments-email") || "").trim().toLowerCase();

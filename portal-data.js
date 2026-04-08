@@ -373,7 +373,7 @@ function buildLocalDataLayer() {
       const existing = users.find((user) => normalizeEmail(user.email) === email);
       const baseFields = {
         name: role === "admin" ? ADMIN_CONFIG.name || "Sistem Yoneticisi" : prettifyEmailName(email) || "Ogretmen",
-        className: "BILSEM",
+        className: "",
         email,
         role
       };
@@ -381,7 +381,7 @@ function buildLocalDataLayer() {
       if (existing) {
         existing.role = role;
         existing.name = existing.name || baseFields.name;
-        existing.className = existing.className || baseFields.className;
+        existing.className = isStaffRole(role) ? "" : (existing.className || "");
         existing.email = email;
       } else {
         users.push({
@@ -450,14 +450,11 @@ function buildLocalDataLayer() {
       }
 
       const role = resolveRoleFromEmail(email);
-      if (role !== "student") {
-        throw new Error("Ogretmen ve admin hesaplari sadece yonetim panelinden olusturulur.");
-      }
       const user = {
         id: createId(role),
         role,
         name: String(payload.name || "").trim(),
-        className: String(payload.className || "").trim(),
+        className: role === "student" ? String(payload.className || "").trim() : "",
         email,
         password: String(payload.password || ""),
         createdAt: new Date().toISOString(),
@@ -483,6 +480,13 @@ function buildLocalDataLayer() {
     async getCurrentUser() {
       return getCurrentUserFromSession();
     },
+    async sendPasswordResetEmail(email) {
+      const normalized = normalizeEmail(email);
+      if (!normalized) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+      throw new Error("LOCAL_MODE_PASSWORD_RESET_NOT_AVAILABLE");
+    },
     async listApprovedTeacherEmails() {
       return getMergedApprovedTeacherEmails(getStoredApprovedTeacherEmails());
     },
@@ -498,73 +502,6 @@ function buildLocalDataLayer() {
       saveStoredApprovedTeacherEmails(merged.filter((item) => item !== normalizeEmail(ADMIN_CONFIG.email)));
       seedStaffAccounts();
       return merged;
-    },
-    async createTeacherAccount(payload, actor) {
-      if (!actor || !isAdminRole(actor.role)) {
-        throw new Error("Sadece admin ogretmen hesabi olusturabilir.");
-      }
-
-      const email = normalizeEmail(payload?.email);
-      const password = String(payload?.password || "").trim();
-      const name = String(payload?.name || "").trim();
-      const className = String(payload?.className || "").trim() || "BILSEM";
-
-      if (!email) {
-        throw new Error("Gecerli bir e-posta girin.");
-      }
-      if (email === normalizeEmail(ADMIN_CONFIG.email)) {
-        throw new Error("Admin e-postasi ogretmen hesabina donusturulemez.");
-      }
-      if (password.length < 4) {
-        throw new Error("Yerel modda ogretmen sifresi en az 4 karakter olmali.");
-      }
-
-      const users = getUsers();
-      if (users.some((user) => normalizeEmail(user.email) === email)) {
-        throw new Error("Bu e-posta zaten kayitli.");
-      }
-
-      const merged = getMergedApprovedTeacherEmails([...getStoredApprovedTeacherEmails(), email]);
-      saveStoredApprovedTeacherEmails(merged.filter((item) => item !== normalizeEmail(ADMIN_CONFIG.email)));
-
-      const user = {
-        id: createId("teacher"),
-        role: "teacher",
-        name: name || prettifyEmailName(email) || "Ogretmen",
-        className,
-        email,
-        password,
-        createdAt: new Date().toISOString(),
-        ...createEmptyAssignment()
-      };
-
-      users.push(user);
-      saveUsers(users);
-      return user;
-    },
-    async updateTeacherPassword(payload, actor) {
-      if (!actor || !isAdminRole(actor.role)) {
-        throw new Error("Sadece admin ogretmen sifresi guncelleyebilir.");
-      }
-
-      const email = normalizeEmail(payload?.email);
-      const password = String(payload?.password || "").trim();
-      if (!email) {
-        throw new Error("Gecerli bir ogretmen e-postasi girin.");
-      }
-      if (password.length < 4) {
-        throw new Error("Yerel modda ogretmen sifresi en az 4 karakter olmali.");
-      }
-
-      const users = getUsers();
-      const teacher = users.find((user) => normalizeEmail(user.email) === email && isStaffRole(user.role) && !isAdminRole(user.role));
-      if (!teacher) {
-        throw new Error("Sifresi guncellenecek ogretmen bulunamadi.");
-      }
-
-      teacher.password = password;
-      saveUsers(users);
-      return { email, updated: true };
     },
     async removeApprovedTeacherEmail(email, actor) {
       if (!actor || !isAdminRole(actor.role)) {
@@ -828,8 +765,8 @@ async function buildFirebaseDataLayer() {
     import("https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js")
   ]);
 
-  const { initializeApp, getApps, deleteApp } = appModule;
-  const { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } = authModule;
+  const { initializeApp } = appModule;
+  const { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail: firebaseSendPasswordResetEmail } = authModule;
   const {
     getFirestore,
     doc,
@@ -921,7 +858,7 @@ async function buildFirebaseDataLayer() {
       uid: authUser.uid,
       email: normalizeEmail(authUser.email),
       name: extra.name || current.name || authUser.displayName || authUser.email,
-      className: extra.className || current.className || (isStaffRole(role) ? "BILSEM" : ""),
+      className: isStaffRole(role) ? "" : (extra.className || current.className || ""),
       role,
       assignedTeacherId: current.assignedTeacherId || null,
       assignedTeacherName: current.assignedTeacherName || "",
@@ -983,10 +920,6 @@ async function buildFirebaseDataLayer() {
     },
     async registerUser(payload) {
       const email = normalizeEmail(payload.email);
-      const role = await resolveRoleFromEmailRemote(email);
-      if (role !== "student") {
-        throw new Error("Ogretmen ve admin hesaplari sadece yonetim panelinden olusturulur.");
-      }
       const credential = await createUserWithEmailAndPassword(auth, email, payload.password);
       await updateProfile(credential.user, { displayName: String(payload.name || "").trim() });
       return upsertProfile(credential.user, {
@@ -1003,6 +936,13 @@ async function buildFirebaseDataLayer() {
     },
     async getCurrentUser() {
       return auth.currentUser ? upsertProfile(auth.currentUser) : null;
+    },
+    async sendPasswordResetEmail(email) {
+      const normalized = normalizeEmail(email);
+      if (!normalized) {
+        throw new Error("Gecerli bir e-posta girin.");
+      }
+      await firebaseSendPasswordResetEmail(auth, normalized);
     },
     async listApprovedTeacherEmails() {
       return getMergedApprovedTeacherEmails(await getRemoteApprovedTeacherEmails());
@@ -1022,92 +962,19 @@ async function buildFirebaseDataLayer() {
         createdBy: actor.id,
         createdByName: actor.name
       }, { merge: true });
-      return this.listApprovedTeacherEmails();
-    },
-    async createTeacherAccount(payload, actor) {
-      if (!actor || !isAdminRole(actor.role)) {
-        throw new Error("Sadece admin ogretmen hesabi olusturabilir.");
-      }
-
-      const email = normalizeEmail(payload?.email);
-      const password = String(payload?.password || "").trim();
-      const name = String(payload?.name || "").trim();
-      const className = String(payload?.className || "").trim() || "BILSEM";
-
-      if (!email) {
-        throw new Error("Gecerli bir e-posta girin.");
-      }
-      if (email === normalizeEmail(ADMIN_CONFIG.email)) {
-        throw new Error("Admin e-postasi ogretmen hesabina donusturulemez.");
-      }
-      if (password.length < 6) {
-        throw new Error("Firebase modunda ogretmen sifresi en az 6 karakter olmali.");
-      }
-
-      await setDoc(doc(db, "staffEmails", email), {
-        email,
-        role: "teacher",
-        createdAt: serverTimestamp(),
-        createdBy: actor.id,
-        createdByName: actor.name
-      }, { merge: true });
-
-      const appName = `teacher-provision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const secondaryApp = initializeApp(FIREBASE_CONFIG.config, appName);
-      const secondaryAuth = getAuth(secondaryApp);
-      const secondaryDb = getFirestore(secondaryApp);
-
-      try {
-        const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-        await updateProfile(credential.user, { displayName: name || prettifyEmailName(email) || "Ogretmen" });
-
-        await setDoc(doc(secondaryDb, "users", credential.user.uid), {
-          uid: credential.user.uid,
-          email,
-          name: name || prettifyEmailName(email) || "Ogretmen",
-          className,
+      const usersByEmail = await getDocs(query(collection(db, "users"), where("email", "==", normalized)));
+      await Promise.all(usersByEmail.docs.map((item) => {
+        const data = item.data() || {};
+        if (data.role === "admin") {
+          return Promise.resolve();
+        }
+        return setDoc(item.ref, {
           role: "teacher",
-          assignedTeacherId: null,
-          assignedTeacherName: "",
-          assignedTeacherEmail: "",
-          createdAt: serverTimestamp(),
+          className: "",
           updatedAt: serverTimestamp()
         }, { merge: true });
-
-        return {
-          id: credential.user.uid,
-          email,
-          name: name || prettifyEmailName(email) || "Ogretmen",
-          className,
-          role: "teacher"
-        };
-      } finally {
-        try {
-          await signOut(secondaryAuth);
-        } catch {
-          // no-op
-        }
-        const cached = getApps().find((item) => item.name === appName);
-        if (cached) {
-          await deleteApp(cached);
-        }
-      }
-    },
-    async updateTeacherPassword(payload, actor) {
-      if (!actor || !isAdminRole(actor.role)) {
-        throw new Error("Sadece admin ogretmen sifresi guncelleyebilir.");
-      }
-      const email = normalizeEmail(payload?.email);
-      const password = String(payload?.password || "").trim();
-
-      if (!email) {
-        throw new Error("Gecerli bir ogretmen e-postasi girin.");
-      }
-      if (password.length < 6) {
-        throw new Error("Firebase modunda ogretmen sifresi en az 6 karakter olmali.");
-      }
-
-      throw new Error("FIREBASE_TEACHER_PASSWORD_UPDATE_REQUIRES_BACKEND");
+      }));
+      return this.listApprovedTeacherEmails();
     },
     async removeApprovedTeacherEmail(email, actor) {
       if (!actor || !isAdminRole(actor.role)) {
@@ -1118,6 +985,17 @@ async function buildFirebaseDataLayer() {
         throw new Error("Bu e-posta silinemez.");
       }
       await firestoreModule.deleteDoc(doc(db, "staffEmails", normalized));
+      const usersByEmail = await getDocs(query(collection(db, "users"), where("email", "==", normalized)));
+      await Promise.all(usersByEmail.docs.map((item) => {
+        const data = item.data() || {};
+        if (data.role === "admin") {
+          return Promise.resolve();
+        }
+        return setDoc(item.ref, {
+          role: "student",
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }));
       return this.listApprovedTeacherEmails();
     },
     async saveQuiz(actor, payload) {

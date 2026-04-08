@@ -79,78 +79,33 @@
     })();
   </script>
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-    import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-
     const statusNode = document.getElementById("status");
     const closeButton = document.getElementById("close-button");
     const payload = window.__UPLOAD_PAYLOAD__;
     const requestId = window.__UPLOAD_REQUEST_ID__;
-    const config = window.PORTAL_CONFIG;
-
-    if (!payload || !requestId || !config?.firebase?.config?.apiKey) {
+    if (!payload || !requestId) {
       statusNode.textContent = "Portal ayarlari okunamadi. Bu pencereyi kapatip tekrar deneyin.";
       closeButton.hidden = false;
       closeButton.onclick = () => window.close();
     } else {
-      const app = initializeApp(config.firebase.config);
-      const auth = getAuth(app);
-      const db = getFirestore(app);
+      localStorage.setItem("algoritmaUploadCallback:" + requestId, JSON.stringify(payload));
+      if (window.opener) {
+        window.opener.postMessage({
+          type: "google-drive-upload-complete",
+          requestId,
+          payload
+        }, window.location.origin);
+      }
 
-      onAuthStateChanged(auth, async (user) => {
-        if (!user) {
-          statusNode.textContent = "Portal oturumu bulunamadi. Ana sayfada giris yapip tekrar deneyin.";
-          closeButton.hidden = false;
-          closeButton.onclick = () => window.close();
-          return;
-        }
+      statusNode.textContent = "Yukleme bilgisi portala iletildi. Bu pencere kapanabilir.";
+      closeButton.hidden = false;
+      closeButton.onclick = () => window.close();
 
+      setTimeout(() => {
         try {
-          await setDoc(doc(db, "projects", requestId), {
-            requestId,
-            userId: user.uid,
-            studentName: payload.studentName || user.displayName || "Ogrenci",
-            className: payload.className || "",
-            email: payload.email || user.email || "",
-            title: payload.title || payload.driveFileName || "Proje dosyasi",
-            description: payload.description || "",
-            driveFileId: payload.driveFileId || "",
-            driveFileUrl: payload.driveFileUrl || "",
-            driveFileName: payload.driveFileName || "",
-            mimeType: payload.mimeType || "",
-            size: Number(payload.size || 0),
-            uploadedAt: serverTimestamp(),
-            reviewText: "",
-            reviewUpdatedAt: null,
-            reviewUpdatedBy: null,
-            reviewUpdatedByName: null
-          }, { merge: true });
-
-          localStorage.setItem("algoritmaUploadCallback:" + requestId, JSON.stringify(payload));
-          if (window.opener) {
-            window.opener.postMessage({
-              type: "google-drive-upload-complete",
-              requestId,
-              payload
-            }, window.location.origin);
-          }
-
-          statusNode.textContent = "Proje kaydi olusturuldu. Bu pencere kapanabilir.";
-          closeButton.hidden = false;
-          closeButton.onclick = () => window.close();
-
-          setTimeout(() => {
-            try {
-              window.close();
-            } catch (error) {}
-          }, 500);
-        } catch (error) {
-          statusNode.textContent = "Firestore kaydi olusturulamadi. " + (error?.message || "");
-          closeButton.hidden = false;
-          closeButton.onclick = () => window.close();
-        }
-      });
+          window.close();
+        } catch (error) {}
+      }, 500);
     }
   </script>
 </body>

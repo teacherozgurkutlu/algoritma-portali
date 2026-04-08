@@ -122,13 +122,24 @@ service cloud.firestore {
       allow read: if isAdmin() ||
         (isTeacher() && (
           resource.data.teacherId == request.auth.uid ||
-          resource.data.teacherEmail == request.auth.token.email
+          resource.data.teacherEmail == request.auth.token.email ||
+          (
+            exists(/databases/$(database)/documents/users/$(resource.data.userId)) &&
+            get(/databases/$(database)/documents/users/$(resource.data.userId)).data.assignedTeacherEmail == request.auth.token.email
+          )
         )) ||
         (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow update: if isAdmin() || (isTeacher() && (
-        resource.data.teacherId == request.auth.uid ||
-        resource.data.teacherEmail == request.auth.token.email
-      ));
+      allow update: if isAdmin() ||
+        (isTeacher() && (
+          resource.data.teacherId == request.auth.uid ||
+          resource.data.teacherEmail == request.auth.token.email
+        )) ||
+        (
+          isSignedIn() &&
+          currentRole() == "student" &&
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == request.auth.uid
+        );
       allow delete: if false;
     }
 

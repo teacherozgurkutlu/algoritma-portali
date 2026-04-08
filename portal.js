@@ -239,7 +239,16 @@ function toCsvCell(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+function updateRoleBasedNavigation() {
+  const canAccessManagement = isStaffRole(state.currentUser?.role);
+  document.querySelectorAll("[data-nav-staff-only]").forEach((node) => {
+    node.hidden = !canAccessManagement;
+  });
+}
+
 function renderSessionBadges() {
+  updateRoleBasedNavigation();
+
   document.querySelectorAll("[data-session-status]").forEach((node) => {
     node.innerHTML = "";
   });
@@ -251,39 +260,7 @@ function renderSessionBadges() {
     }
 
     node.innerHTML = `
-      <span class="status-pill">${escapeHtml(state.currentUser.name)} • ${roleLabel(state.currentUser.role)}</span>
-      <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
-    `;
-    node.innerHTML = `
       <span class="status-pill">${escapeHtml(state.currentUser.name)} | ${roleLabel(state.currentUser.role)}</span>
-      <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
-    `;
-  });
-
-  document.querySelectorAll("[data-logout-button]").forEach((button) => {
-    button.onclick = async () => {
-      await state.dataLayer.logoutUser();
-      window.location.href = "giris.html";
-    };
-  });
-  return;
-
-  const modeLabel = getModeLabel();
-
-  document.querySelectorAll("[data-session-status]").forEach((node) => {
-    if (!state.currentUser) {
-      node.innerHTML = `
-        <span class="status-pill">${modeLabel} mod</span>
-        <span class="status-pill">Oturum yok</span>
-        <a class="button button-secondary" href="giris.html">Giris Yap</a>
-      `;
-      return;
-    }
-
-    node.innerHTML = `
-      <span class="status-pill">${modeLabel} mod</span>
-      <span class="status-pill">${escapeHtml(state.currentUser.name)} • ${roleLabel(state.currentUser.role)}</span>
-      <a class="button button-secondary" href="${homePathForUser(state.currentUser)}">${nextStepLabel(state.currentUser)}</a>
       <button class="button button-secondary" type="button" data-logout-button>Cikis Yap</button>
     `;
   });
@@ -886,7 +863,7 @@ function renderProjectCards(projects, viewerRole) {
   `;
 }
 
-function renderStudentProjectPage(snapshot) {
+function renderStudentProjectPage(snapshot, { messageOnly = false } = {}) {
   const statsHost = document.getElementById("student-project-stats");
   const overviewHost = document.getElementById("student-project-overview");
   const uploadHost = document.getElementById("student-project-upload");
@@ -895,12 +872,17 @@ function renderStudentProjectPage(snapshot) {
   const uploadConfig = getGoogleDriveUploadConfig();
 
   if (statsHost) {
-    statsHost.innerHTML = `
-      <article class="stat-card"><span>Atanan ogretmen</span><strong>${snapshot.teacher ? escapeHtml(snapshot.teacher.name) : "-"}</strong></article>
-      <article class="stat-card"><span>Yuklenen proje</span><strong>${(snapshot.projects || []).length}</strong></article>
-      <article class="stat-card"><span>Mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
-      <article class="stat-card"><span>Quiz sonucu</span><strong>${(snapshot.attempts || []).length}</strong></article>
-    `;
+    statsHost.innerHTML = messageOnly
+      ? `
+        <article class="stat-card"><span>Atanan ogretmen</span><strong>${snapshot.teacher ? escapeHtml(snapshot.teacher.name) : "-"}</strong></article>
+        <article class="stat-card"><span>Toplam mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
+      `
+      : `
+        <article class="stat-card"><span>Atanan ogretmen</span><strong>${snapshot.teacher ? escapeHtml(snapshot.teacher.name) : "-"}</strong></article>
+        <article class="stat-card"><span>Yuklenen proje</span><strong>${(snapshot.projects || []).length}</strong></article>
+        <article class="stat-card"><span>Mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
+        <article class="stat-card"><span>Quiz sonucu</span><strong>${(snapshot.attempts || []).length}</strong></article>
+      `;
   }
 
   if (overviewHost) {
@@ -911,9 +893,11 @@ function renderStudentProjectPage(snapshot) {
             <h3>${escapeHtml(snapshot.teacher.name)}</h3>
             <p>${escapeHtml(snapshot.teacher.email || "-")} • ${escapeHtml(snapshot.teacher.className || "-")}</p>
             <div class="summary-metrics">
-              <span>${(snapshot.projects || []).length} proje</span>
+              ${messageOnly
+                ? `<span>${(snapshot.messages || []).length} mesaj</span>`
+                : `<span>${(snapshot.projects || []).length} proje</span>
               <span>${(snapshot.messages || []).length} mesaj</span>
-              <span>${(snapshot.quizzes || []).length} quiz</span>
+              <span>${(snapshot.quizzes || []).length} quiz</span>`}
             </div>
           </article>
         </div>
@@ -921,7 +905,7 @@ function renderStudentProjectPage(snapshot) {
       : `<div class="gate-card"><h2>Ogretmen atamasi yok</h2><p>Atama olmasa da proje yukleme ve mesajlasma kullanilabilir.</p></div>`;
   }
 
-  if (uploadHost) {
+  if (uploadHost && !messageOnly) {
     uploadHost.innerHTML = isGoogleDriveUploadConfigured()
       ? `
         <div class="project-upload-card">
@@ -935,7 +919,7 @@ function renderStudentProjectPage(snapshot) {
       : `<div class="empty-state">Drive yukleme koprusu henuz tanimli degil.</div>`;
   }
 
-  if (projectHost) {
+  if (projectHost && !messageOnly) {
     projectHost.innerHTML = renderProjectCards(snapshot.projects || [], "student");
   }
 
@@ -987,12 +971,17 @@ function renderStaffProjectPage(snapshot, { messageOnly = false } = {}) {
 
   if (statsHost) {
     const reviewedCount = (snapshot.projects || []).filter((project) => project.reviewText).length;
-    statsHost.innerHTML = `
-      <article class="stat-card"><span>Gorunen ogrenci</span><strong>${(snapshot.students || []).length}</strong></article>
-      <article class="stat-card"><span>Yuklenen proje</span><strong>${(snapshot.projects || []).length}</strong></article>
-      <article class="stat-card"><span>Degerlendirilen</span><strong>${reviewedCount}</strong></article>
-      <article class="stat-card"><span>Toplam mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
-    `;
+    statsHost.innerHTML = messageOnly
+      ? `
+        <article class="stat-card"><span>Gorunen ogrenci</span><strong>${(snapshot.students || []).length}</strong></article>
+        <article class="stat-card"><span>Toplam mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
+      `
+      : `
+        <article class="stat-card"><span>Gorunen ogrenci</span><strong>${(snapshot.students || []).length}</strong></article>
+        <article class="stat-card"><span>Yuklenen proje</span><strong>${(snapshot.projects || []).length}</strong></article>
+        <article class="stat-card"><span>Degerlendirilen</span><strong>${reviewedCount}</strong></article>
+        <article class="stat-card"><span>Toplam mesaj</span><strong>${(snapshot.messages || []).length}</strong></article>
+      `;
   }
 
   if (!workspaceHost) return;
@@ -1419,7 +1408,8 @@ function bindStaffProjectActions() {
 
     try {
       await state.dataLayer.saveProjectReview(projectId, input?.value || "", state.currentUser);
-      await loadManagementSnapshot(renderStaffProjectPage);
+      const messageOnly = Boolean(document.querySelector("[data-message-page]"));
+      await loadManagementSnapshot((snapshot) => renderStaffProjectPage(snapshot, { messageOnly }));
       const refreshedStatus = host.querySelector(`[data-review-status="${projectId}"]`);
       if (refreshedStatus) refreshedStatus.textContent = "Kaydedildi.";
     } catch (error) {
@@ -1453,7 +1443,8 @@ function bindStaffProjectActions() {
         sender: state.currentUser
       });
       form.reset();
-      await loadManagementSnapshot(renderStaffProjectPage);
+      const messageOnly = Boolean(document.querySelector("[data-message-page]"));
+      await loadManagementSnapshot((snapshot) => renderStaffProjectPage(snapshot, { messageOnly }));
     } catch (error) {
       if (status) status.textContent = friendlyErrorMessage(error);
     }
@@ -1991,22 +1982,8 @@ function renderProjectManagementPage() {
   if (staffShell) staffShell.hidden = true;
   if (studentShell) studentShell.hidden = false;
   loadStudentWorkspace((snapshot) => {
-    renderStudentProjectPage(snapshot);
+    renderStudentProjectPage(snapshot, { messageOnly: isMessagePage });
     bindStudentProjectActions();
-
-    const messageCard = document.getElementById("student-message-thread")?.closest(".lab-card");
-    const projectListCard = document.getElementById("student-project-list")?.closest(".lab-card");
-    const uploadCard = document.getElementById("student-project-upload")?.closest(".lab-card");
-
-    if (isMessagePage) {
-      if (projectListCard) projectListCard.hidden = true;
-      if (uploadCard) uploadCard.hidden = true;
-      if (messageCard) messageCard.hidden = false;
-    } else {
-      if (messageCard) messageCard.hidden = true;
-      if (projectListCard) projectListCard.hidden = false;
-      if (uploadCard) uploadCard.hidden = false;
-    }
   });
 }
 
@@ -2055,4 +2032,5 @@ initPortal().catch((error) => {
     node.innerHTML = `<span class="status-pill">Hata</span><span class="status-pill">${escapeHtml(friendlyErrorMessage(error))}</span>`;
   });
 });
+
 

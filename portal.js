@@ -1401,7 +1401,15 @@ function bindStudentProjectActions() {
             : "Drive kaydi Firebase'e yaziliyor...";
         }
         if (!projectPayload.firestoreSaved) {
-          await state.dataLayer.saveProjectRecord(state.currentUser, projectPayload);
+          try {
+            await state.dataLayer.saveProjectRecord(state.currentUser, projectPayload);
+          } catch (error) {
+            const callbackError = String(projectPayload.firestoreSaveError || "").trim();
+            if (callbackError) {
+              throw new Error(`${callbackError} | Ana pencere kaydi da basarisiz: ${error?.message || error}`);
+            }
+            throw error;
+          }
         }
         await loadStudentWorkspace(renderStudentProjectPage);
         if (uploadMessage) uploadMessage.textContent = "Proje basariyla kaydedildi.";

@@ -81,7 +81,7 @@
     })();
   </script>
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
     import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
@@ -120,7 +120,7 @@
         throw new Error("Firebase ayarlari eksik.");
       }
 
-      const app = initializeApp(firebaseConfig, "upload-callback-app");
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
       const currentUser = await waitForCurrentUser(auth);

@@ -11,7 +11,7 @@ import {
   isGoogleDriveUploadConfigured,
   isStaffRole,
   isTeacherRole
-} from "./portal-data.js?v=20260407-6";
+} from "./portal-data.js?v=20260408-4";
 
 const state = {
   dataLayer: null,

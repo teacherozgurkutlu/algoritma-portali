@@ -1,12 +1,14 @@
 {
   "private": true,
   "scripts": {
+    "start": "serve -s . -l $PORT",
     "firebase:login": "firebase login",
     "firebase:serve": "firebase emulators:start --only auth,firestore,hosting",
     "firebase:deploy": "firebase deploy"
   },
   "dependencies": {
     "firebase": "^12.11.0",
-    "firebase-tools": "^15.13.0"
+    "firebase-tools": "^15.13.0",
+    "serve": "^14.2.5"
   }
 }

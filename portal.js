@@ -2101,12 +2101,35 @@ function renderTeacherDashboard() {
   });
 }
 
+function bindHomeVideoEmbed() {
+  const host = document.querySelector("[data-home-video]");
+  const trigger = host?.querySelector("[data-home-video-trigger]");
+  if (!host || !trigger || trigger.dataset.bound) return;
+
+  trigger.dataset.bound = "true";
+  trigger.addEventListener("click", () => {
+    const videoId = host.getAttribute("data-video-id");
+    if (!videoId) return;
+
+    const iframe = document.createElement("iframe");
+    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?rel=0`;
+    iframe.title = "Algoritma Portali tanitim videosu";
+    iframe.loading = "lazy";
+    iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    iframe.allowFullscreen = true;
+
+    host.replaceChildren(iframe);
+  });
+}
+
 async function initPortal() {
   state.dataLayer = await createDataLayer();
   state.currentUser = await state.dataLayer.ensureSetup();
 
   renderSessionBadges();
   renderFirebaseSetupWarning();
+  bindHomeVideoEmbed();
   bindLoginPage();
   renderQuizPage();
   renderProjectManagementPage();

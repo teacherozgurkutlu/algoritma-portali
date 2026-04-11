@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "start": "serve -s . -l $PORT",
+    "start": "serve . -l $PORT",
     "firebase:login": "firebase login",
     "firebase:serve": "firebase emulators:start --only auth,firestore,hosting",
     "firebase:deploy": "firebase deploy"

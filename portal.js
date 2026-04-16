@@ -11,7 +11,7 @@ import {
   isGoogleDriveUploadConfigured,
   isStaffRole,
   isTeacherRole
-} from "./portal-data.js?v=20260408-4";
+} from "./portal-data.js?v=20260416-4";
 
 const state = {
   dataLayer: null,
@@ -93,6 +93,13 @@ function roleLabel(role) {
   return "Ogrenci";
 }
 
+function isAdminSessionUser(user = state.currentUser) {
+  const adminEmail = normalizeText(getPortalMeta().adminEmail);
+  return Boolean(user) && (
+    isAdminRole(user.role) ||
+    normalizeText(user.email) === adminEmail
+  );
+}
 function roleDescription(role) {
   if (role === "admin") return "Tum sistemi gorur ve atama yapar.";
   if (role === "teacher") return "Yalnizca atanmis ogrencilerle calisir.";
@@ -205,6 +212,49 @@ function clearTeacherAssignmentsInSnapshot(snapshot, teacherEmail) {
     message.teacherName = "";
     message.teacherEmail = "";
   });
+}
+
+function removeStudentFromSnapshot(snapshot, studentId) {
+  if (!snapshot) return;
+  const rawStudentId = String(studentId || "").trim();
+  const normalizedStudentId = normalizeText(rawStudentId);
+  if (!normalizedStudentId) return;
+
+  const removedStudent = (snapshot.students || []).find((student) =>
+    normalizeText(student.id) === normalizedStudentId || normalizeText(student.email) === normalizedStudentId
+  );
+  const resolvedStudentId = String(removedStudent?.id || rawStudentId).trim();
+
+  snapshot.students = (snapshot.students || []).filter((student) =>
+    normalizeText(student.id) !== normalizedStudentId && normalizeText(student.email) !== normalizedStudentId
+  );
+  snapshot.attempts = (snapshot.attempts || []).filter((attempt) => attempt.userId !== resolvedStudentId);
+  snapshot.projects = (snapshot.projects || []).filter((project) => project.userId !== resolvedStudentId);
+  snapshot.messages = (snapshot.messages || []).filter((message) => message.studentId !== resolvedStudentId);
+  snapshot.quizzes = (snapshot.quizzes || []).map((quiz) => {
+    const accessibleUserIds = (quiz.accessibleUserIds || []).filter((id) => id !== resolvedStudentId);
+    return {
+      ...quiz,
+      accessibleUserIds,
+      audienceLabel: `${accessibleUserIds.length} ogrenci`
+    };
+  });
+}
+
+function removeQuizFromSnapshot(snapshot, quizId) {
+  if (!snapshot) return;
+  const normalizedQuizId = String(quizId || "").trim();
+  if (!normalizedQuizId) return;
+
+  snapshot.quizzes = (snapshot.quizzes || []).filter((quiz) => quiz.id !== normalizedQuizId);
+  snapshot.attempts = (snapshot.attempts || []).filter((attempt) => attempt.quizId !== normalizedQuizId);
+}
+
+function removeMessageFromSnapshot(snapshot, messageId) {
+  if (!snapshot) return;
+  const normalizedMessageId = String(messageId || "").trim();
+  if (!normalizedMessageId) return;
+  snapshot.messages = (snapshot.messages || []).filter((message) => message.id !== normalizedMessageId);
 }
 
 function homePathForUser(user) {
@@ -672,7 +722,7 @@ function getAvailableQuizStudents(snapshot) {
 }
 
 function getDraftAudienceOptions() {
-  if (isAdminRole(state.currentUser?.role)) {
+  if (isAdminSessionUser(state.currentUser)) {
     return [
       { value: "all_students", label: "Tum ogrenciler" },
       { value: "selected_students", label: "Secili ogrenciler" }
@@ -692,7 +742,7 @@ function renderQuizBuilder(snapshot) {
   const audienceOptions = getDraftAudienceOptions();
   const allowedAudienceValues = new Set(audienceOptions.map((option) => option.value));
   if (!allowedAudienceValues.has(state.quizDraft.audience)) {
-    state.quizDraft.audience = isAdminRole(state.currentUser?.role) ? "all_students" : "all_assigned";
+    state.quizDraft.audience = isAdminSessionUser(state.currentUser) ? "all_students" : "all_assigned";
   }
   const showSelection = state.quizDraft.audience === "selected_students";
   const availableStudentIds = new Set(students.map((student) => student.id));
@@ -798,6 +848,14 @@ function renderStaffQuizList(snapshot) {
           <span>Ortalama: ${stats?.averageScore || 0}</span>
           <span>${lastAttempt ? `Son teslim: ${formatDate(lastAttempt)}` : "Sonuc yok"}</span>
         </div>
+        ${(isAdminSessionUser(state.currentUser) || quiz.createdBy === state.currentUser?.id)
+          ? `
+            <div class="inline-actions">
+              <button class="button button-secondary" type="button" data-delete-quiz="${escapeHtml(quiz.id)}">Quizi sil</button>
+              <span class="inline-note" data-delete-quiz-status="${escapeHtml(quiz.id)}"></span>
+            </div>
+          `
+          : ""}
       </article>
     `;
   }).join("");
@@ -836,7 +894,7 @@ function renderStaffQuizResults(snapshot) {
   `;
 }
 
-function renderMessageThread(messages, viewerRole) {
+function renderMessageThread(messages, viewerRole, { allowDelete = false } = {}) {
   if (!messages.length) {
     return `<div class="empty-state">Henuz mesaj yok.</div>`;
   }
@@ -853,6 +911,12 @@ function renderMessageThread(messages, viewerRole) {
               <span>${escapeHtml(roleLabel(message.senderRole))} • ${formatDate(message.createdAt)}</span>
             </div>
             <p>${renderRichText(message.text)}</p>
+            ${allowDelete ? `
+              <div class="inline-actions">
+                <button class="button button-secondary" type="button" data-delete-message="${escapeHtml(message.id)}">Mesaji sil</button>
+                <span class="inline-note" data-delete-message-status="${escapeHtml(message.id)}"></span>
+              </div>
+            ` : ""}
           </article>
         `;
       }).join("")}
@@ -1038,7 +1102,7 @@ function renderStaffProjectPage(snapshot, { messageOnly = false } = {}) {
         ${messageOnly ? `
           <section class="teacher-student-column">
             <h3>Mesajlasma</h3>
-            ${renderMessageThread(messages, "staff")}
+            ${renderMessageThread(messages, "staff", { allowDelete: isAdminSessionUser(state.currentUser) })}
             <form class="message-form" data-teacher-message-form="${escapeHtml(student.id)}">
               <label class="field">
                 <span>${escapeHtml(student.name)} icin mesaj</span>
@@ -1382,7 +1446,7 @@ function bindQuizBuilder() {
       : students.map((student) => student.id);
     const audienceLabel = state.quizDraft.audience === "selected_students"
       ? `${accessibleUserIds.length} secili ogrenci`
-      : isAdminRole(state.currentUser.role) ? "Tum ogrenciler" : "Atanmis tum ogrenciler";
+      : isAdminSessionUser(state.currentUser) ? "Tum ogrenciler" : "Atanmis tum ogrenciler";
 
     if (message) message.textContent = "Kaydediliyor...";
 
@@ -1395,7 +1459,7 @@ function bindQuizBuilder() {
         questions: state.quizDraft.questions
       });
       state.quizDraft = createEmptyQuizDraft();
-      if (!isAdminRole(state.currentUser.role)) {
+      if (!isAdminSessionUser(state.currentUser)) {
         state.quizDraft.audience = "all_assigned";
       }
       await loadManagementSnapshot((snapshot) => {
@@ -1408,6 +1472,39 @@ function bindQuizBuilder() {
       if (refreshedMessage) refreshedMessage.textContent = "Quiz basariyla yayina alindi.";
     } catch (error) {
       if (message) message.textContent = friendlyErrorMessage(error);
+    }
+  });
+}
+
+function bindStaffQuizListActions() {
+  const host = document.getElementById("staff-quiz-list");
+  if (!host || host.dataset.bound) return;
+  host.dataset.bound = "true";
+
+  host.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-delete-quiz]");
+    if (!button) return;
+
+    const quizId = String(button.getAttribute("data-delete-quiz") || "").trim();
+    const status = host.querySelector(`[data-delete-quiz-status="${quizId}"]`);
+    if (!quizId) return;
+    if (!window.confirm("Bu quizi ve ilgili tum sonuc kayitlarini silmek istiyor musunuz?")) return;
+
+    button.disabled = true;
+    if (status) status.textContent = "Siliniyor...";
+
+    try {
+      await state.dataLayer.deleteQuiz(quizId, state.currentUser);
+      removeQuizFromSnapshot(state.managementSnapshot, quizId);
+      renderStaffQuizStats(state.managementSnapshot);
+      renderStaffQuizList(state.managementSnapshot);
+      renderStaffQuizResults(state.managementSnapshot);
+      const refreshedStatus = host.querySelector(`[data-delete-quiz-status="${quizId}"]`);
+      if (refreshedStatus) refreshedStatus.textContent = "Quiz silindi.";
+    } catch (error) {
+      if (status) status.textContent = friendlyErrorMessage(error);
+    } finally {
+      button.disabled = false;
     }
   });
 }
@@ -1484,6 +1581,42 @@ function bindStaffProjectActions() {
   host.dataset.bound = "true";
 
   host.addEventListener("click", async (event) => {
+    const deleteMessageButton = event.target.closest("[data-delete-message]");
+    if (deleteMessageButton) {
+      const messageId = String(deleteMessageButton.getAttribute("data-delete-message") || "").trim();
+      const status = host.querySelector(`[data-delete-message-status="${messageId}"]`);
+      if (!messageId) {
+        if (status) status.textContent = "Mesaj kimligi bulunamadi.";
+        else window.alert("Mesaj kimligi bulunamadi.");
+        return;
+      }
+      if (!isAdminSessionUser(state.currentUser)) {
+        const authText = `Bu islem icin admin oturumu gerekli. Mevcut: ${state.currentUser?.role || "-"} / ${state.currentUser?.email || "-"}`;
+        if (status) status.textContent = authText;
+        window.alert(authText);
+        return;
+      }
+      if (!window.confirm("Bu mesaji silmek istiyor musunuz?")) return;
+
+      deleteMessageButton.disabled = true;
+      if (status) status.textContent = "Siliniyor...";
+
+      try {
+        await state.dataLayer.deleteMessage(messageId, state.currentUser);
+        removeMessageFromSnapshot(state.managementSnapshot, messageId);
+        const messageOnly = Boolean(document.querySelector("[data-message-page]"));
+        renderStaffProjectPage(state.managementSnapshot, { messageOnly });
+        window.alert("Mesaj silindi.");
+      } catch (error) {
+        const message = friendlyErrorMessage(error);
+        if (status) status.textContent = message;
+        window.alert(message);
+      } finally {
+        deleteMessageButton.disabled = false;
+      }
+      return;
+    }
+
     const button = event.target.closest("[data-save-review-button]");
     if (!button) return;
 
@@ -1541,8 +1674,12 @@ function bindStaffProjectActions() {
 function getFilteredStudents(snapshot) {
   const search = normalizeText(state.teacherFilters.search);
   const className = state.teacherFilters.className;
+  const approvedTeacherEmails = new Set((snapshot.approvedTeacherEmails || []).map((email) => normalizeText(email)).filter(Boolean));
 
   return [...(snapshot.students || [])].filter((student) => {
+    if (isStaffRole(student.role) || approvedTeacherEmails.has(normalizeText(student.email))) {
+      return false;
+    }
     const matchesClass = className === "all" || normalizeText(student.className) === normalizeText(className);
     if (!matchesClass) return false;
     if (!search) return true;
@@ -1631,10 +1768,10 @@ function renderManagementDashboard(snapshot) {
   if (directoryHost) {
     const directoryCard = directoryHost.closest(".lab-card");
     if (directoryCard) {
-      directoryCard.hidden = !isAdminRole(state.currentUser.role);
+      directoryCard.hidden = !isAdminSessionUser(state.currentUser);
     }
   }
-  if (directoryHost && isAdminRole(state.currentUser.role)) {
+  if (directoryHost && isAdminSessionUser(state.currentUser)) {
     directoryHost.innerHTML = assignmentTargets.length
       ? `
         <div class="summary-card-grid">
@@ -1736,10 +1873,10 @@ function renderManagementDashboard(snapshot) {
   }
 
   const adminSection = document.getElementById("admin-assignment-section");
-  if (adminSection) adminSection.hidden = !isAdminRole(state.currentUser.role);
+  if (adminSection) adminSection.hidden = !isAdminSessionUser(state.currentUser);
 
   const assignmentHost = document.getElementById("assignment-board");
-  if (assignmentHost && isAdminRole(state.currentUser.role)) {
+  if (assignmentHost && isAdminSessionUser(state.currentUser)) {
     assignmentHost.innerHTML = rows.length
       ? rows.map((row) => `
         <div class="assignment-row">
@@ -1758,7 +1895,9 @@ function renderManagementDashboard(snapshot) {
               }).join("")}
             </select>
             <button class="button button-primary" type="button" data-assignment-save="${escapeHtml(row.student.id)}">Kaydet</button>
+            <button class="button button-secondary" type="button" data-student-delete="${escapeHtml(row.student.id || row.student.email || "")}">Ogrenciyi sil</button>
             <span class="inline-note" data-assignment-status="${escapeHtml(row.student.id)}"></span>
+            <span class="inline-note" data-student-delete-status="${escapeHtml(row.student.id || row.student.email || "")}"></span>
           </div>
         </div>
       `).join("")
@@ -1766,7 +1905,7 @@ function renderManagementDashboard(snapshot) {
   }
 
   const teacherEmailHost = document.getElementById("teacher-email-admin");
-  if (teacherEmailHost && isAdminRole(state.currentUser.role)) {
+  if (teacherEmailHost && isAdminSessionUser(state.currentUser)) {
     const approvedEmails = [...(snapshot.approvedTeacherEmails || [])].filter((email) => email !== "kutluozgur79@gmail.com");
     teacherEmailHost.innerHTML = `
       <form id="teacher-email-form" class="form-grid">
@@ -1883,6 +2022,43 @@ function bindTeacherDashboardActions() {
   if (assignmentHost && !assignmentHost.dataset.bound) {
     assignmentHost.dataset.bound = "true";
     assignmentHost.addEventListener("click", async (event) => {
+      const deleteButton = event.target.closest("[data-student-delete]");
+      if (deleteButton) {
+        const studentId = deleteButton.getAttribute("data-student-delete");
+        const status = assignmentHost.querySelector(`[data-student-delete-status="${studentId}"]`);
+        if (!studentId) {
+          if (status) status.textContent = "Ogrenci kimligi bulunamadi.";
+          else window.alert("Ogrenci kimligi bulunamadi.");
+          return;
+        }
+        if (!isAdminSessionUser(state.currentUser)) {
+          const authText = `Bu islem icin admin oturumu gerekli. Mevcut: ${state.currentUser?.role || "-"} / ${state.currentUser?.email || "-"}`;
+          if (status) status.textContent = authText;
+          window.alert(authText);
+          return;
+        }
+        if (!window.confirm("Bu ogrenciyi ve tum quiz/proje/mesaj kayitlarini silmek istiyor musunuz?")) return;
+
+        deleteButton.disabled = true;
+        if (status) status.textContent = "Siliniyor...";
+
+        try {
+          await state.dataLayer.deleteStudent(studentId, state.currentUser);
+          removeStudentFromSnapshot(state.managementSnapshot, studentId);
+          renderManagementDashboard(state.managementSnapshot);
+          const refreshedStatus = assignmentHost.querySelector(`[data-student-delete-status="${studentId}"]`);
+          if (refreshedStatus) refreshedStatus.textContent = "Ogrenci silindi.";
+          window.alert("Ogrenci silindi.");
+        } catch (error) {
+          const message = friendlyErrorMessage(error);
+          if (status) status.textContent = message;
+          window.alert(message);
+        } finally {
+          deleteButton.disabled = false;
+        }
+        return;
+      }
+
       const button = event.target.closest("[data-assignment-save]");
       if (!button) return;
 
@@ -2024,6 +2200,7 @@ function renderQuizPage() {
       renderStaffQuizList(snapshot);
       renderStaffQuizResults(snapshot);
       bindQuizBuilder();
+      bindStaffQuizListActions();
     });
     return;
   }
